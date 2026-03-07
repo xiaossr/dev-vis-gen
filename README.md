@@ -38,10 +38,12 @@ cd dev-vis-gen
 python export_flux2_klein_xnnpack.py \
     --output_dir ./exported_flux2_klein
 
-# With int8 quantization (recommended for mobile — smaller + faster):
+# With w4da8 quantization for text encoder, fp32 for other components 
 python export_flux2_klein_xnnpack.py \
     --output_dir ./exported_flux2_klein \
-    --quantize
+    --component text_encoder \
+    --text_encoder_8da4w \
+    --embedding_quantize 8
 
 # Export with image-to-image support:
 python export_flux2_klein_xnnpack.py \

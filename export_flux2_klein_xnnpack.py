@@ -219,6 +219,108 @@ def _free_memory():
         torch.cuda.empty_cache()
 
 
+def apply_8da4w_quantization(model: nn.Module, group_size: int = 128):
+    """Apply 8da4w quantization: int8 dynamic activations + int4 weights.
+
+    Uses the same TorchAO quantization path as ExecuTorch's LLM export
+    pipeline (``extension.llm.export``).  All ``nn.Linear`` layers whose
+    input dimension is divisible by *group_size* are quantized in-place.
+
+    After quantization, ``unwrap_tensor_subclass`` is called so that the
+    resulting model can be traced by ``torch.export``.
+    """
+    from torchao.quantization import (
+        Int8DynamicActivationIntxWeightConfig,
+        quantize_,
+    )
+    from torchao.quantization.granularity import PerGroup
+    from torchao.utils import unwrap_tensor_subclass
+
+    def filter_fn(m, fqn):
+        return isinstance(m, nn.Linear) and m.weight.shape[1] % group_size == 0
+
+    logger.info(
+        "Applying 8da4w quantization (int4 weights, group_size=%d) …",
+        group_size,
+    )
+    quantize_(
+        model,
+        Int8DynamicActivationIntxWeightConfig(
+            weight_dtype=torch.int4,
+            weight_granularity=PerGroup(group_size),
+        ),
+        filter_fn=filter_fn,
+    )
+    unwrap_tensor_subclass(model)
+    logger.info("8da4w quantization complete.")
+
+
+class _QuantizedEmbedding(nn.Module):
+    """int8 per-channel quantized embedding using ExecuTorch's native op.
+
+    Uses ``quantized_decomposed::embedding_byte.dtype`` which has proper
+    out-variant support in ExecuTorch (unlike TorchAO's
+    ``dequantize_affine``).
+    """
+
+    def __init__(self, weight_int8: torch.Tensor, scales: torch.Tensor,
+                 output_dtype: torch.dtype = torch.float32):
+        super().__init__()
+        self.output_dtype = output_dtype
+        self.register_buffer("weight", weight_int8)  # (V, D) int8
+        self.register_buffer("scales", scales)        # (V,) float16
+
+    @torch.no_grad()
+    def forward(self, indices: torch.Tensor) -> torch.Tensor:
+        return torch.ops.quantized_decomposed.embedding_byte.dtype(
+            self.weight, self.scales, None, -128, 127, indices,
+            dtype=self.output_dtype,
+        )
+
+
+def _quantize_embedding_per_channel(weight: torch.Tensor):
+    """Symmetric per-channel int8 quantization for an embedding table.
+
+    Returns (weight_int8, scales) where
+    ``weight ≈ weight_int8.float() * scales.unsqueeze(1)``.
+    """
+    weight_float = weight.detach().float()
+    scales = weight_float.abs().amax(dim=1).clamp(min=1e-8) / 127.0
+    weight_int8 = torch.clamp(
+        torch.round(weight_float / scales.unsqueeze(1)), -128, 127
+    ).to(torch.int8)
+    return weight_int8, scales.to(torch.float16)
+
+
+def _replace_embeddings(module: nn.Module, output_dtype: torch.dtype = torch.float32):
+    """Recursively replace every ``nn.Embedding`` with ``_QuantizedEmbedding``."""
+    for name, child in module.named_children():
+        if isinstance(child, nn.Embedding):
+            w_int8, scales = _quantize_embedding_per_channel(child.weight)
+            setattr(module, name, _QuantizedEmbedding(w_int8, scales, output_dtype))
+        else:
+            _replace_embeddings(child, output_dtype)
+
+
+def apply_embedding_quantization(model: nn.Module):
+    """Quantize all ``nn.Embedding`` layers to int8 per-channel.
+
+    Mirrors the ``embedding_quantize: 8,0`` option in ExecuTorch's LLM
+    export YAML config.  For Qwen3-4B the embedding table is
+    151936 × 2560 = ~1.5 GB in fp32; quantizing to int8 shrinks it to ~0.4 GB.
+
+    Uses ``quantized_decomposed::embedding_byte.dtype`` (with registered
+    out-variant) instead of TorchAO's ``dequantize_affine`` to avoid
+    the "Missing out variants" error at serialisation time.
+    """
+    # Ensure the quantized_decomposed custom ops are registered.
+    import executorch.exir.passes._quant_patterns_and_replacements  # noqa: F401
+
+    logger.info("Applying embedding quantization (int8, per-channel) …")
+    _replace_embeddings(model, output_dtype=torch.float32)
+    logger.info("Embedding quantization complete.")
+
+
 def load_pipeline(model_id: str, dtype: torch.dtype = torch.float32):
     """Load Flux2KleinPipeline from HuggingFace Hub (or a local path)."""
     from diffusers import Flux2KleinPipeline
@@ -397,14 +499,22 @@ def export_component_to_xnnpack(
     sample_inputs: tuple,
     output_path: str,
     quantize: bool = False,
+    use_dynamic_quant_partitioner: bool = False,
 ):
     """torch.export → XNNPACK partitioning → ExecuTorch serialisation.
 
     If *quantize* is True, PT2E int8-symmetric quantization is applied
     before lowering (requires ``torchao``).
+
+    If *use_dynamic_quant_partitioner* is True, the XNNPACK partitioner
+    is configured to handle dynamically-quantized linear ops (needed for
+    models that were source-transformed with 8da4w quantization).  Two
+    partitioners run in sequence: first one for DQ-linear nodes, then a
+    greedy one for everything else.
     """
     from torch.export import export
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import (
+        XnnpackDynamicallyQuantizedPartitioner,
         XnnpackPartitioner,
     )
     from executorch.exir import to_edge_transform_and_lower
@@ -437,14 +547,10 @@ def export_component_to_xnnpack(
             num_calibration_passes = 10
             with torch.no_grad():
                 for cal_i in range(num_calibration_passes):
-                    # Use varied representative inputs: different random seeds
-                    # and a spread of timestep values to cover the activation
-                    # range the model will see at inference time.
                     cal_inputs = []
                     for j, inp in enumerate(sample_inputs):
                         if inp.is_floating_point():
                             if inp.ndim == 1 and inp.shape[0] == 1:
-                                # Timestep — sweep across sigma range
                                 cal_inputs.append(
                                     torch.full_like(inp, (cal_i + 1) / (num_calibration_passes + 1))
                                 )
@@ -469,9 +575,17 @@ def export_component_to_xnnpack(
 
     # ---- lower to XNNPACK ----------------------------------------------
     logger.info("Lowering to XNNPACK backend …")
+    if use_dynamic_quant_partitioner:
+        partitioners = [
+            XnnpackDynamicallyQuantizedPartitioner(),
+            XnnpackPartitioner(),
+        ]
+    else:
+        partitioners = [XnnpackPartitioner()]
+
     edge_program = to_edge_transform_and_lower(
         exported_program,
-        partitioner=[XnnpackPartitioner()],
+        partitioner=partitioners,
     )
 
     # ---- serialise to .pte ---------------------------------------------
@@ -543,6 +657,18 @@ def main():
                     help="Max text-token sequence length for the transformer")
     p.add_argument("--quantize", action="store_true",
                     help="Apply int8 symmetric quantization (XNNPACK)")
+    p.add_argument("--text_encoder_8da4w", action="store_true",
+                    help="Apply 8da4w quantization (int8 dynamic activation + "
+                         "int4 weight) to the Qwen3 text encoder instead of "
+                         "the default PT2E int8.  This matches the quantization "
+                         "used by ExecuTorch's LLM export for Qwen3 and "
+                         "reduces text-encoder size by ~4× vs fp32.")
+    p.add_argument("--group_size", type=int, default=128,
+                    help="Group size for 8da4w weight quantization (default: 128)")
+    p.add_argument("--embedding_quantize", type=int, default=0, metavar="BITS",
+                    help="Quantize nn.Embedding layers to BITS-bit (e.g. 8 for "
+                         "int8).  Matches ExecuTorch's 'embedding_quantize: 8,0'.  "
+                         "Set to 0 (default) to keep embeddings in fp32.")
     p.add_argument("--component",
                     choices=["all", "transformer", "vae", "vae_encoder",
                              "text_encoder"],
@@ -583,12 +709,16 @@ def main():
     vae_cfg = pipe.vae.config
     vae_sf = _get_vae_scale_factor(pipe)
     patch_h, patch_w = _compute_latent_dims(args.height, args.width, vae_sf)
+    te_quant_mode = "8da4w" if args.text_encoder_8da4w else ("int8" if args.quantize else "none")
     meta = {
         "model_id": args.model_id,
         "height": args.height,
         "width": args.width,
         "max_text_len": args.max_text_len,
-        "quantized": args.quantize,
+        "quantized": args.quantize or args.text_encoder_8da4w,
+        "text_encoder_quantization": te_quant_mode,
+        "text_encoder_group_size": args.group_size if args.text_encoder_8da4w else None,
+        "text_encoder_embedding_quantize": args.embedding_quantize if args.embedding_quantize > 0 else None,
         "is_distilled": is_distilled,
         "num_inference_steps": 4 if is_distilled else 50,
         "guidance_scale": 1.0 if is_distilled else 4.0,
@@ -625,6 +755,18 @@ def main():
         logger.info("EXPORTING TEXT ENCODER (Qwen3)")
         logger.info("=" * 60)
 
+        te_use_8da4w = args.text_encoder_8da4w
+        if te_use_8da4w:
+            logger.info("8da4w requested — quantizing Qwen3 text encoder "
+                        "(group_size=%d) before wrapping …", args.group_size)
+            pipe.text_encoder = pipe.text_encoder.float()
+            apply_8da4w_quantization(pipe.text_encoder, group_size=args.group_size)
+
+        if args.embedding_quantize > 0:
+            logger.info("Quantizing text encoder embeddings to int%d …",
+                        args.embedding_quantize)
+            apply_embedding_quantization(pipe.text_encoder)
+
         wrapper = Qwen3TextEncoderWrapper(
             pipe.text_encoder, hidden_states_layers=hidden_states_layers,
         ).eval()
@@ -639,7 +781,8 @@ def main():
 
         export_component_to_xnnpack(
             wrapper, inputs, str(out / "text_encoder.pte"),
-            quantize=args.quantize,
+            quantize=args.quantize if not te_use_8da4w else False,
+            use_dynamic_quant_partitioner=te_use_8da4w,
         )
         del wrapper, inputs
         _free_memory()
