@@ -596,7 +596,7 @@ def main():
                     help="Target image height (determines transformer input shapes)")
     p.add_argument("--width", type=int, default=512,
                     help="Target image width")
-    p.add_argument("--max_text_len", type=int, default=128,
+    p.add_argument("--max_text_len", type=int, default=512,
                     help="Max text-token sequence length for the transformer")
     p.add_argument("--quantize", action="store_true",
                     help="Apply int8 symmetric quantization (XNNPACK)")
@@ -632,17 +632,10 @@ def main():
     save_vae_bn_stats(pipe, str(out))
 
     # ---- determine text encoder hidden_states_layers -------------------
-    # The pipeline extracts hidden states from specific layers. For Klein,
-    # these are typically evenly spaced through the model (e.g. 9, 18, 27
-    # for a 28-layer model, or 12, 24, 36 for a 36-layer model).
+    # Must match the pipeline's encode_prompt default for Klein (Qwen3): (9, 18, 27).
     te_cfg = pipe.text_encoder.config
     num_te_layers = getattr(te_cfg, "num_hidden_layers", 28)
-    # Default: extract from layers at 1/3, 2/3, and final
-    hidden_states_layers = [
-        num_te_layers // 3,
-        2 * num_te_layers // 3,
-        num_te_layers - 1,
-    ]
+    hidden_states_layers = [9, 18, 27]
     logger.info("Text encoder: %d layers, extracting from %s",
                 num_te_layers, hidden_states_layers)
 

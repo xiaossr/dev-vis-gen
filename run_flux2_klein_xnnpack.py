@@ -440,10 +440,10 @@ def denoise(
         sigma = sigmas[i]
         sigma_next = sigmas[i + 1]
 
-        # The pipeline passes timestep/1000 to the transformer, which
-        # internally multiplies by 1000 (net identity).  Since the ×1000
-        # is baked into the exported graph, we must divide here too.
-        timestep = torch.full((batch,), sigma / 1000.0, dtype=dtype)
+        # The pipeline passes t/1000 where t = sigma*1000 (scheduler
+        # timestep), so the transformer receives the raw sigma.  The
+        # transformer internally does *1000 (baked into the .pte).
+        timestep = torch.full((batch,), sigma, dtype=dtype)
 
         # Build hidden_states: noise tokens [+ image tokens for img2img]
         if image_latents is not None:
