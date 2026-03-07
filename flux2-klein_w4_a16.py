@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -28,21 +29,47 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+def parse_torch_dtype(value: str) -> torch.dtype:
+    dtypes = {
+        "float32": torch.float32,
+        "float16": torch.float16,
+        "bfloat16": torch.bfloat16,
+    }
+    try:
+        return dtypes[value]
+    except KeyError as exc:
+        raise argparse.ArgumentTypeError(f"Unsupported dtype: {value}") from exc
 
-MODEL_NAME = "black-forest-labs/FLUX.2-klein-4B"
-CHECKPOINT_PATH = Path("/home/hanlab/nunchaku-flux.2-klein-4b-int4/nunchaku-int4_r128-flux.2-klein-4b.safetensors")
-DENSE_CACHE_PATH = CHECKPOINT_PATH.with_name("nunchaku-flux.2-klein-4b-w4a4-emulated.safetensors")
-LOCAL_MODEL_PATH = Path(
-    "/root/.cache/huggingface/hub/models--black-forest-labs--FLUX.2-klein-4B/snapshots/e7b7dc27f91deacad38e78976d1f2b499d76a294"
-)
-DEVICE = "cuda"
-DTYPE = torch.bfloat16
-PROMPT = "A cat holding a sign that says hello world"
-USE_W4A8_MAIN_MATMUL = True
-W4A8_MAIN_MATMUL_OUT_CHUNK = 256
-USE_DUMMY_PROMPT_EMBEDS = False
-DUMMY_PROMPT_LENGTH = 512
-LOCAL_FILES_ONLY = True
+
+def parse_args() -> argparse.Namespace:
+    checkpoint_path = Path("/home/hanlab/nunchaku-flux.2-klein-4b-int4/nunchaku-int4_r128-flux.2-klein-4b.safetensors")
+    # This cache stores the converted tensors used by the pure PyTorch reference path.
+    dense_cache_path = checkpoint_path.with_name("nunchaku-flux.2-klein-4b-w4a4-emulated.safetensors")
+    # If this local snapshot exists, the script avoids a fresh Hugging Face download.
+    local_model_path = Path(
+        "/root/.cache/huggingface/hub/models--black-forest-labs--FLUX.2-klein-4B/snapshots/e7b7dc27f91deacad38e78976d1f2b499d76a294"
+    )
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model-name", default="black-forest-labs/FLUX.2-klein-4B")
+    parser.add_argument("--checkpoint-path", type=Path, default=checkpoint_path)
+    parser.add_argument("--dense-cache-path", type=Path, default=dense_cache_path)
+    parser.add_argument("--local-model-path", type=Path, default=local_model_path)
+    parser.add_argument("--device", default="cuda")
+    parser.add_argument("--dtype", type=parse_torch_dtype, default=torch.bfloat16)
+    parser.add_argument("--prompt", default="A cat holding a sign that says hello world")
+    parser.add_argument("--use-w4a8-main-matmul", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--w4a8-main-matmul-out-chunk", type=int, default=256)
+    parser.add_argument("--use-dummy-prompt-embeds", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--dummy-prompt-length", type=int, default=512)
+    parser.add_argument("--local-files-only", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--height", type=int, default=1024)
+    parser.add_argument("--width", type=int, default=1024)
+    parser.add_argument("--guidance-scale", type=float, default=1.0)
+    parser.add_argument("--num-inference-steps", type=int, default=4)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--output-path", type=Path, default=Path("flux2-klein-4b-w4a8-ref.png"))
+    return parser.parse_args()
 
 
 def format_gib(num_bytes: int) -> str:
@@ -121,6 +148,8 @@ def convert_flux_state_dict(state_dict: dict[str, torch.Tensor]) -> dict[str, to
 
 class PureTorchSVDQInt4LinearBF16(nn.Module):
     group_size = 64
+    use_w4a8_main_matmul = True
+    w4a8_main_matmul_out_chunk = 256
 
     def __init__(
         self,
@@ -281,8 +310,8 @@ class PureTorchSVDQInt4LinearBF16(nn.Module):
         num_rows = qx.shape[0]
         num_groups = qx.shape[1]
         output = torch.empty(num_rows, self.out_features, device=x.device, dtype=torch.float32)
-        for start in range(0, self.out_features, W4A8_MAIN_MATMUL_OUT_CHUNK):
-            stop = min(start + W4A8_MAIN_MATMUL_OUT_CHUNK, self.out_features)
+        for start in range(0, self.out_features, self.w4a8_main_matmul_out_chunk):
+            stop = min(start + self.w4a8_main_matmul_out_chunk, self.out_features)
             chunk = torch.zeros(num_rows, stop - start, device=x.device, dtype=torch.float32)
             qweight_chunk = qw[start:stop]
             wscale_chunk = wscale[start:stop]
@@ -297,7 +326,7 @@ class PureTorchSVDQInt4LinearBF16(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.main_qweight.numel():
             bias = self.bias.to(device=x.device, dtype=x.dtype) if self.bias is not None else None
-            if USE_W4A8_MAIN_MATMUL:
+            if self.use_w4a8_main_matmul:
                 output = self._w4a8_main_linear(x, bias)
             else:
                 x_main = self._quantize_dequantize_activation(x)
@@ -715,10 +744,12 @@ def unpack_lowrank_weight(weight: torch.Tensor, down: bool) -> torch.Tensor:
     return weight
 
 
-def build_main_weight_from_quantized_layer(source_layer: nn.Module, batch_size: int = 64) -> torch.Tensor:
+def build_main_weight_from_quantized_layer(
+    source_layer: nn.Module, device: str, dtype: torch.dtype, batch_size: int = 64
+) -> torch.Tensor:
     in_features = source_layer.in_features
     out_features = source_layer.out_features
-    main_weight = torch.empty(out_features, in_features, dtype=DTYPE, device="cpu")
+    main_weight = torch.empty(out_features, in_features, dtype=dtype, device="cpu")
     saved_bias = source_layer.bias.detach().clone() if source_layer.bias is not None else None
     saved_proj_down = source_layer.proj_down.detach().clone()
     saved_proj_up = source_layer.proj_up.detach().clone()
@@ -731,10 +762,10 @@ def build_main_weight_from_quantized_layer(source_layer: nn.Module, batch_size: 
         for start in range(0, in_features, batch_size):
             stop = min(start + batch_size, in_features)
             chunk = stop - start
-            basis = torch.zeros(chunk, in_features, device=DEVICE, dtype=DTYPE)
-            basis[torch.arange(chunk, device=DEVICE), torch.arange(start, stop, device=DEVICE)] = 1
+            basis = torch.zeros(chunk, in_features, device=device, dtype=dtype)
+            basis[torch.arange(chunk, device=device), torch.arange(start, stop, device=device)] = 1
             outputs = source_layer(basis.view(1, chunk, in_features)).view(chunk, out_features).transpose(0, 1)
-            main_weight[:, start:stop] = outputs.to(device="cpu", dtype=DTYPE)
+            main_weight[:, start:stop] = outputs.to(device="cpu", dtype=dtype)
         if source_layer.bias is not None:
             source_layer.bias.copy_(saved_bias)
         source_layer.proj_down.copy_(saved_proj_down)
@@ -745,6 +776,7 @@ def build_main_weight_from_quantized_layer(source_layer: nn.Module, batch_size: 
 def build_dense_cache(
     checkpoint_path: Path,
     cache_path: Path,
+    device: str,
     torch_dtype: torch.dtype = torch.bfloat16,
 ) -> dict[str, dict[str, torch.Tensor]]:
     from nunchaku import NunchakuFlux2Transformer2DModel
@@ -752,7 +784,7 @@ def build_dense_cache(
 
     print(f"Building W4A4 emulation cache at {cache_path} from {checkpoint_path}")
     source_transformer = NunchakuFlux2Transformer2DModel.from_pretrained(
-        str(checkpoint_path), device=DEVICE, torch_dtype=torch_dtype
+        str(checkpoint_path), device=device, torch_dtype=torch_dtype
     )
     source_transformer.eval()
 
@@ -765,7 +797,7 @@ def build_dense_cache(
         print(f"[{index}/{len(quantized_modules)}] exporting {name}")
         if not torch.all(module.smooth_factor == 1):
             raise ValueError(f"Non-trivial smooth_factor is not supported in the reference path: {name}")
-        main_weight = build_main_weight_from_quantized_layer(module)
+        main_weight = build_main_weight_from_quantized_layer(module, device=device, dtype=torch_dtype)
         main_qweight, main_wscale = PureTorchSVDQInt4LinearBF16._quantize_weight_to_int4(module, main_weight)
         proj_down_dense = unpack_lowrank_weight(module.proj_down.detach().cpu(), down=True).transpose(0, 1).contiguous()
         proj_up_dense = unpack_lowrank_weight(module.proj_up.detach().cpu(), down=False).contiguous()
@@ -785,7 +817,9 @@ def build_dense_cache(
     return output_cache
 
 
-def attach_dense_weights(transformer: nn.Module, dense_cache: dict[str, dict[str, torch.Tensor]]) -> None:
+def attach_dense_weights(
+    transformer: nn.Module, dense_cache: dict[str, dict[str, torch.Tensor]], torch_dtype: torch.dtype
+) -> None:
     for name, module in iter_quantized_linears(transformer).items():
         cached = dense_cache.get(name)
         if cached is None:
@@ -793,36 +827,40 @@ def attach_dense_weights(transformer: nn.Module, dense_cache: dict[str, dict[str
         if "main_qweight" not in cached or "main_wscale" not in cached:
             if "main_weight" not in cached:
                 raise ValueError(f"Missing quantized or dense main weight for {name}")
-            main_qweight, main_wscale = module._quantize_weight_to_int4(cached["main_weight"].to(dtype=DTYPE))
+            main_qweight, main_wscale = module._quantize_weight_to_int4(cached["main_weight"].to(dtype=torch_dtype))
         else:
             main_qweight = cached["main_qweight"]
             main_wscale = cached["main_wscale"]
         module.set_reference_weights(
             main_qweight=main_qweight.to(dtype=torch.int8),
             main_wscale=main_wscale.to(dtype=torch.float32),
-            proj_down_dense=cached["proj_down_dense"].to(dtype=DTYPE),
-            proj_up_dense=cached["proj_up_dense"].to(dtype=DTYPE),
+            proj_down_dense=cached["proj_down_dense"].to(dtype=torch_dtype),
+            proj_up_dense=cached["proj_up_dense"].to(dtype=torch_dtype),
         )
         module.drop_packed_storage()
 
 
-def main() -> None:
-    model_source = LOCAL_MODEL_PATH if LOCAL_MODEL_PATH.exists() else MODEL_NAME
-    dense_cache = load_dense_cache(DENSE_CACHE_PATH) if DENSE_CACHE_PATH.exists() else build_dense_cache(
-        checkpoint_path=CHECKPOINT_PATH,
-        cache_path=DENSE_CACHE_PATH,
-        torch_dtype=DTYPE,
+def main(args: argparse.Namespace) -> None:
+    PureTorchSVDQInt4LinearBF16.use_w4a8_main_matmul = args.use_w4a8_main_matmul
+    PureTorchSVDQInt4LinearBF16.w4a8_main_matmul_out_chunk = args.w4a8_main_matmul_out_chunk
+
+    model_source = args.local_model_path if args.local_model_path.exists() else args.model_name
+    dense_cache = load_dense_cache(args.dense_cache_path) if args.dense_cache_path.exists() else build_dense_cache(
+        checkpoint_path=args.checkpoint_path,
+        cache_path=args.dense_cache_path,
+        device=args.device,
+        torch_dtype=args.dtype,
     )
     transformer = PureTorchFlux2Transformer2DModel.from_reference_checkpoint(
-        checkpoint_path=CHECKPOINT_PATH,
-        torch_dtype=DTYPE,
+        checkpoint_path=args.checkpoint_path,
+        torch_dtype=args.dtype,
     )
-    attach_dense_weights(transformer, dense_cache)
+    attach_dense_weights(transformer, dense_cache, torch_dtype=args.dtype)
     pipeline = Flux2KleinPipeline.from_pretrained(
         model_source,
         transformer=transformer,
-        torch_dtype=DTYPE,
-        local_files_only=LOCAL_FILES_ONLY,
+        torch_dtype=args.dtype,
+        local_files_only=args.local_files_only,
     )
     pipeline.enable_model_cpu_offload()
     torch.cuda.synchronize()
@@ -849,19 +887,23 @@ def main() -> None:
     pipeline.vae.decode = profiled_vae_decode
 
     pipeline_kwargs = {
-        "height": 1024,
-        "width": 1024,
-        "guidance_scale": 1.0,
-        "num_inference_steps": 4,
-        "generator": torch.Generator(device=DEVICE).manual_seed(0),
+        "height": args.height,
+        "width": args.width,
+        "guidance_scale": args.guidance_scale,
+        "num_inference_steps": args.num_inference_steps,
+        "generator": torch.Generator(device=args.device).manual_seed(args.seed),
     }
-    if USE_DUMMY_PROMPT_EMBEDS:
+    if args.use_dummy_prompt_embeds:
         pipeline_kwargs["prompt"] = None
         pipeline_kwargs["prompt_embeds"] = torch.zeros(
-            1, DUMMY_PROMPT_LENGTH, pipeline.transformer.config.joint_attention_dim, dtype=DTYPE, device=DEVICE
+            1,
+            args.dummy_prompt_length,
+            pipeline.transformer.config.joint_attention_dim,
+            dtype=args.dtype,
+            device=args.device,
         )
     else:
-        pipeline_kwargs["prompt"] = PROMPT
+        pipeline_kwargs["prompt"] = args.prompt
 
     image = pipeline(**pipeline_kwargs).images[0]
     torch.cuda.synchronize()
@@ -876,8 +918,8 @@ def main() -> None:
         f"reserved={format_gib(generation_peak_reserved)}",
         f"final_allocated={format_gib(torch.cuda.memory_allocated())}",
     )
-    image.save("flux2-klein-4b-w4a8-ref.png")
+    image.save(args.output_path)
 
 
 if __name__ == "__main__":
-    main()
+    main(parse_args())
