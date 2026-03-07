@@ -1,0 +1,19 @@
+# Requirements for exporting FLUX.2-klein-4B to ExecuTorch XNNPACK
+#
+# Install with:  pip install -r requirements_export.txt
+#
+# NOTE: diffusers must be installed from git main for Flux2KleinPipeline support.
+
+torch>=2.4.0
+executorch
+torchao
+
+# diffusers from main branch (Flux2KleinPipeline is not yet in a stable release)
+diffusers @ git+https://github.com/huggingface/diffusers.git
+
+transformers>=4.40.0
+accelerate
+safetensors
+sentencepiece
+Pillow
+numpy
