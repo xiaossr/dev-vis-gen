@@ -2,11 +2,7 @@
 """
 FLUX.2-klein-4B inference using ExecuTorch XNNPACK .pte files.
 
-Pipeline:  pre-computed embeddings → transformer.pte → vae_decoder.pte
-
-Text embeddings are pre-computed during export (Qwen3 is too large to
-export to .pte on most machines).  Prompts must match one that was
-passed via ``--prompts`` during export.
+Pipeline:  text_encoder.pte → transformer.pte → vae_decoder.pte
 
 Supports:
   - Text-to-image generation
@@ -15,7 +11,7 @@ Supports:
 
 Usage
 -----
-    # Text-to-image (prompt must have been pre-computed during export):
+    # Text-to-image:
     python run_flux2_klein_xnnpack.py \\
         --model_dir ./exported_flux2_klein \\
         --prompt "a cat sitting on a windowsill at sunset" \\
@@ -225,60 +221,53 @@ def bn_unnormalise(latents: torch.Tensor, mean: torch.Tensor, var: torch.Tensor,
 
 
 # ============================================================================
-# 6.  Text embeddings (pre-computed .pt files)
+# 6.  Text embeddings
 # ============================================================================
 
-def load_precomputed_embeddings(
-    model_dir: Path,
+def encode_prompt_ondevice(
+    text_encoder_method,
+    tokenizer,
     prompt: str,
+    max_sequence_length: int,
     dtype: torch.dtype = torch.float32,
 ):
-    """Load pre-computed text embeddings from embeddings/ directory.
+    """Tokenize a prompt and run the text_encoder.pte on-device.
 
-    Falls back to the empty-string (negative) embedding if the exact
-    prompt is not found.
+    Tokenization matches the pipeline's _get_qwen3_prompt_embeds exactly:
+    apply_chat_template → tokenize with max_length padding/truncation.
+    Returns (prompt_embeds, txt_ids).
     """
-    emb_dir = model_dir / "embeddings"
-    index_path = emb_dir / "index.json"
+    messages = [{"role": "user", "content": prompt}]
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=False,
+    )
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        padding="max_length",
+        truncation=True,
+        max_length=max_sequence_length,
+    )
+    input_ids = inputs["input_ids"]            # (1, max_seq_len)
+    attention_mask = inputs["attention_mask"]   # (1, max_seq_len)
 
-    if not index_path.exists():
-        raise FileNotFoundError(
-            f"No embeddings found at {emb_dir}/. "
-            "Re-run export with: --prompts \"your prompt here\""
-        )
-
-    with open(index_path) as f:
-        index = json.load(f)
-
-    if prompt in index:
-        filename = index[prompt]
-    else:
-        # List available prompts and suggest re-running
-        available = [p for p in index.keys() if p]  # non-empty
-        logger.warning(
-            "Prompt %r not found in pre-computed embeddings. "
-            "Available: %s. Using first available prompt embedding.",
-            prompt, available,
-        )
-        if available:
-            filename = index[available[0]]
-        else:
-            filename = index[""]  # fall back to empty/negative
-
-    data = torch.load(emb_dir / filename, map_location="cpu", weights_only=True)
-    prompt_embeds = data["prompt_embeds"].to(dtype)
-    logger.info("Loaded embeddings for %r → %s", data.get("prompt", ""), prompt_embeds.shape)
+    t0 = time.perf_counter()
+    prompt_embeds = text_encoder_method.execute([
+        input_ids.contiguous(),
+        attention_mask.contiguous(),
+    ])
+    if isinstance(prompt_embeds, (list, tuple)):
+        prompt_embeds = prompt_embeds[0]
+    prompt_embeds = prompt_embeds.to(dtype)
+    dt = time.perf_counter() - t0
+    logger.info("Text encoder: %.2f s → %s", dt, prompt_embeds.shape)
 
     txt_ids = prepare_text_ids(prompt_embeds.shape[1], batch=1).to(dtype)
     return prompt_embeds, txt_ids
 
-
-def load_negative_embeddings(
-    model_dir: Path,
-    dtype: torch.dtype = torch.float32,
-):
-    """Load the empty-string embedding for CFG negative prompt."""
-    return load_precomputed_embeddings(model_dir, "", dtype)
 
 
 # ============================================================================
@@ -485,9 +474,9 @@ def main():
         description="Fully on-device FLUX.2-klein-4B inference (ExecuTorch XNNPACK)",
     )
     p.add_argument("--model_dir", required=True,
-                    help="Directory containing .pte files, embeddings/, and export_config.json")
+                    help="Directory containing .pte files and export_config.json")
     p.add_argument("--prompt", required=True,
-                    help="Text prompt (must match a pre-computed embedding)")
+                    help="Text prompt")
     p.add_argument("--image", default=None,
                     help="Reference image path for image-to-image editing")
     p.add_argument("--guidance_scale", type=float, default=None,
@@ -535,33 +524,56 @@ def main():
         logger.warning("vae_bn_stats.pt not found — BN un-normalisation will be skipped")
 
     # ---- load .pte models ----------------------------------------------
-    required_ptes = ["transformer", "vae_decoder"]
+    # Use transformer_img2img.pte for image editing, transformer.pte for t2i
     if args.image:
-        required_ptes.append("vae_encoder")
+        transformer_pte = model_dir / "transformer_img2img.pte"
+        if not transformer_pte.exists():
+            logger.error(
+                "Missing %s — re-export with --num_img2img_images 1 to "
+                "enable image editing.", transformer_pte,
+            )
+            return
+    else:
+        transformer_pte = model_dir / "transformer.pte"
 
-    pte_files = {name: model_dir / f"{name}.pte" for name in required_ptes}
-    for name, path in pte_files.items():
+    required_files = [transformer_pte, model_dir / "vae_decoder.pte"]
+    if args.image:
+        required_files.append(model_dir / "vae_encoder.pte")
+
+    for path in required_files:
         if not path.exists():
             logger.error("Missing %s", path)
             return
 
-    transformer  = load_pte_model(str(pte_files["transformer"]))
-    vae_decoder  = load_pte_model(str(pte_files["vae_decoder"]))
-    vae_encoder  = load_pte_model(str(pte_files["vae_encoder"])) if args.image else None
+    transformer  = load_pte_model(str(transformer_pte))
+    vae_decoder  = load_pte_model(str(model_dir / "vae_decoder.pte"))
+    vae_encoder  = load_pte_model(str(model_dir / "vae_encoder.pte")) if args.image else None
 
-    # ---- 1. load pre-computed text embeddings --------------------------
+    # Load text encoder .pte for on-device encoding
+    text_encoder_pte = model_dir / "text_encoder.pte"
+    if not text_encoder_pte.exists():
+        logger.error("Missing %s — re-run export with: --component text_encoder", text_encoder_pte)
+        return
+    text_encoder = load_pte_model(str(text_encoder_pte))
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(str(model_dir / "tokenizer"))
+    logger.info("Text encoder .pte loaded")
+
+    # ---- 1. text embeddings --------------------------------------------
     logger.info("=" * 50)
     logger.info("TEXT EMBEDDINGS")
     logger.info("=" * 50)
-    prompt_embeds, txt_ids = load_precomputed_embeddings(
-        model_dir, args.prompt, dtype,
+    max_seq_len = cfg.get("text_encoder", {}).get("max_sequence_length", 512)
+
+    prompt_embeds, txt_ids = encode_prompt_ondevice(
+        text_encoder, tokenizer, args.prompt, max_seq_len, dtype,
     )
 
     # Negative prompt for CFG
     negative_prompt_embeds, negative_txt_ids = None, None
     if guidance_scale > 1.0 and not is_distilled:
-        negative_prompt_embeds, negative_txt_ids = load_negative_embeddings(
-            model_dir, dtype,
+        negative_prompt_embeds, negative_txt_ids = encode_prompt_ondevice(
+            text_encoder, tokenizer, "", max_seq_len, dtype,
         )
 
     # ---- 2. encode reference image (img2img) ---------------------------

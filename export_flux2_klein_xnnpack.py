@@ -3,16 +3,11 @@
 Export FLUX.2-klein-4B to ExecuTorch XNNPACK (.pte) for fully on-device CPU inference.
 
 Pipeline components (from model_index.json):
-  - Text encoder : Qwen3ForCausalLM         → embeddings/*.pt  (pre-computed)
+  - Text encoder : Qwen3ForCausalLM         → text_encoder.pte
   - Transformer  : Flux2Transformer2DModel   → transformer.pte
   - VAE decoder  : AutoencoderKLFlux2        → vae_decoder.pte
   - VAE encoder  : AutoencoderKLFlux2        → vae_encoder.pte  (for img2img)
   - Scheduler    : FlowMatchEulerDiscreteScheduler (pure Python at inference)
-
-The Qwen3 text encoder is too large to torch.export on most machines
-(OOM during tracing/serialisation).  Instead, we run it in PyTorch at
-export time and save the resulting embeddings as .pt files.  The
-inference script loads these directly — no text_encoder.pte needed.
 
 Guidance
 --------
@@ -50,12 +45,8 @@ Usage
     # Export only one component:
     python export_flux2_klein_xnnpack.py --component transformer
     python export_flux2_klein_xnnpack.py --component vae
-    python export_flux2_klein_xnnpack.py --component embeddings
+    python export_flux2_klein_xnnpack.py --component text_encoder
     python export_flux2_klein_xnnpack.py --component vae_encoder
-
-    # Pre-compute embeddings for specific prompts:
-    python export_flux2_klein_xnnpack.py --component embeddings \
-        --prompts "a cat on a windowsill" "a dog in a field"
 
     # Export with image-to-image support (1 reference image at same res):
     python export_flux2_klein_xnnpack.py --num_img2img_images 1
@@ -66,9 +57,6 @@ Notes
 - The transformer alone is ~4 B params (~16 GB fp32, ~4 GB int8).
 - torch.export may not support every op in the model; unsupported ops fall
   back to ExecuTorch's portable CPU kernels (slower but functional).
-- Text embeddings are pre-computed in PyTorch and saved as .pt files.
-  The Qwen3 text encoder is too large to torch.export (OOM during
-  tracing).  To use a new prompt, re-run with ``--component embeddings``.
 
 Platform compatibility
 ----------------------
@@ -510,51 +498,6 @@ def copy_tokenizer(pipe, output_dir: str):
     logger.info("Tokenizer saved to %s/", tok_dir)
 
 
-def precompute_embeddings(pipe, prompts: list, max_text_len: int,
-                          output_dir: str, is_distilled: bool = True):
-    """Run the text encoder in PyTorch and save embeddings as .pt files.
-
-    This avoids the need to export the (very large) Qwen3 text encoder
-    to .pte.  Each prompt gets a separate file in ``embeddings/``.
-    For non-distilled models, an empty-string prompt is included for CFG.
-    """
-    emb_dir = os.path.join(output_dir, "embeddings")
-    os.makedirs(emb_dir, exist_ok=True)
-
-    # Include empty prompt only for non-distilled models (CFG)
-    if is_distilled:
-        all_prompts = list(dict.fromkeys(prompts))  # deduplicate
-    else:
-        all_prompts = list(dict.fromkeys([""] + prompts))  # empty for CFG
-
-    for idx, prompt in enumerate(all_prompts):
-        logger.info("Encoding prompt %d/%d: %r", idx + 1, len(all_prompts),
-                     prompt[:80] + ("…" if len(prompt) > 80 else ""))
-
-        result = pipe.encode_prompt(
-            prompt=prompt,
-            max_sequence_length=max_text_len,
-        )
-        # encode_prompt returns (prompt_embeds, pooled_prompt_embeds, text_ids)
-        prompt_embeds = result[0].detach().cpu().float()
-
-        # Save with a sanitised filename
-        safe_name = f"prompt_{idx}.pt"
-        save_path = os.path.join(emb_dir, safe_name)
-        torch.save({
-            "prompt": prompt,
-            "prompt_embeds": prompt_embeds,
-        }, save_path)
-        logger.info("  → %s  shape=%s", save_path, prompt_embeds.shape)
-
-    # Save an index mapping prompt text → filename
-    index = {all_prompts[i]: f"prompt_{i}.pt" for i in range(len(all_prompts))}
-    index_path = os.path.join(emb_dir, "index.json")
-    with open(index_path, "w") as f:
-        json.dump(index, f, indent=2)
-    logger.info("Saved embedding index to %s", index_path)
-
-
 def save_vae_bn_stats(pipe, output_dir: str):
     """Save the VAE's batch-norm running statistics.
 
@@ -602,13 +545,9 @@ def main():
                     help="Apply int8 symmetric quantization (XNNPACK)")
     p.add_argument("--component",
                     choices=["all", "transformer", "vae", "vae_encoder",
-                             "embeddings"],
+                             "text_encoder"],
                     default="all",
                     help="Which component(s) to export")
-    p.add_argument("--prompts", nargs="+",
-                    default=["a cat sitting on a windowsill at sunset"],
-                    help="Prompts to pre-compute text embeddings for.  "
-                         "An empty-string (negative) prompt is always included.")
     p.add_argument("--num_img2img_images", type=int, default=0,
                     help="Number of reference images for img2img.  When > 0 "
                          "the transformer is exported with a combined sequence "
@@ -680,13 +619,30 @@ def main():
     meta_path.write_text(json.dumps(meta, indent=2))
     logger.info("Wrote %s", meta_path)
 
-    # ---- pre-compute text embeddings ------------------------------------
-    if args.component in ("all", "embeddings"):
+    # ---- export text encoder ---------------------------------------------
+    if args.component in ("all", "text_encoder"):
         logger.info("=" * 60)
-        logger.info("PRE-COMPUTING TEXT EMBEDDINGS (Qwen3 in PyTorch)")
+        logger.info("EXPORTING TEXT ENCODER (Qwen3)")
         logger.info("=" * 60)
-        precompute_embeddings(pipe, args.prompts, args.max_text_len, str(out),
-                              is_distilled=is_distilled)
+
+        wrapper = Qwen3TextEncoderWrapper(
+            pipe.text_encoder, hidden_states_layers=hidden_states_layers,
+        ).eval()
+        inputs = build_text_encoder_inputs(args.max_text_len)
+
+        logger.info("Sanity-checking forward pass …")
+        with torch.no_grad():
+            test_out = wrapper(*inputs)
+        logger.info("  output shape: %s  ✓", test_out.shape)
+        del test_out
+        _free_memory()
+
+        export_component_to_xnnpack(
+            wrapper, inputs, str(out / "text_encoder.pte"),
+            quantize=args.quantize,
+        )
+        del wrapper, inputs
+        _free_memory()
 
     # Free text encoder before heavy exports to reduce peak RAM
     if hasattr(pipe, "text_encoder") and pipe.text_encoder is not None:
@@ -697,28 +653,59 @@ def main():
 
     # ---- export transformer --------------------------------------------
     if args.component in ("all", "transformer"):
-        logger.info("=" * 60)
-        logger.info("EXPORTING TRANSFORMER")
-        logger.info("=" * 60)
-
         wrapper = Flux2TransformerWrapper(pipe.transformer).eval()
-        inputs  = build_transformer_inputs(
-            pipe, args.height, args.width, args.max_text_len, dtype,
-            num_img2img_images=args.num_img2img_images,
-        )
 
+        # Always export the text-to-image transformer (no image tokens)
+        logger.info("=" * 60)
+        logger.info("EXPORTING TRANSFORMER (text-to-image)")
+        logger.info("=" * 60)
+
+        t2i_inputs = build_transformer_inputs(
+            pipe, args.height, args.width, args.max_text_len, dtype,
+            num_img2img_images=0,
+        )
         logger.info("Sanity-checking forward pass …")
         with torch.no_grad():
-            test_out = wrapper(*inputs)
+            test_out = wrapper(*t2i_inputs)
         logger.info("  output shape: %s  ✓", test_out.shape)
         del test_out
         _free_memory()
 
         export_component_to_xnnpack(
-            wrapper, inputs, str(out / "transformer.pte"),
+            wrapper, t2i_inputs, str(out / "transformer.pte"),
             quantize=args.quantize,
         )
-        del wrapper, inputs
+        del t2i_inputs
+        _free_memory()
+
+        # If img2img is requested, also export a second transformer
+        # with the larger sequence length (noise + image tokens)
+        if args.num_img2img_images > 0:
+            logger.info("=" * 60)
+            logger.info("EXPORTING TRANSFORMER (image-to-image, %d ref image(s))",
+                        args.num_img2img_images)
+            logger.info("=" * 60)
+
+            img2img_inputs = build_transformer_inputs(
+                pipe, args.height, args.width, args.max_text_len, dtype,
+                num_img2img_images=args.num_img2img_images,
+            )
+            logger.info("Sanity-checking forward pass …")
+            with torch.no_grad():
+                test_out = wrapper(*img2img_inputs)
+            logger.info("  output shape: %s  ✓", test_out.shape)
+            del test_out
+            _free_memory()
+
+            export_component_to_xnnpack(
+                wrapper, img2img_inputs,
+                str(out / "transformer_img2img.pte"),
+                quantize=args.quantize,
+            )
+            del img2img_inputs
+            _free_memory()
+
+        del wrapper
         _free_memory()
 
     # ---- export VAE decoder --------------------------------------------
@@ -783,10 +770,6 @@ def main():
     bn_path = out / "vae_bn_stats.pt"
     if bn_path.exists():
         print(f"  {'vae_bn_stats.pt':30s}  (VAE batch-norm stats)")
-    emb_dir = out / "embeddings"
-    if emb_dir.is_dir():
-        n_emb = len(list(emb_dir.glob("prompt_*.pt")))
-        print(f"  {'embeddings/':30s}  ({n_emb} pre-computed prompt(s))")
     tok_dir = out / "tokenizer"
     if tok_dir.is_dir():
         print(f"  {'tokenizer/':30s}  (Qwen2TokenizerFast)")
