@@ -255,6 +255,41 @@ def apply_8da4w_quantization(model: nn.Module, group_size: int = 128):
     logger.info("8da4w quantization complete.")
 
 
+def apply_w8a8_quantization(model: nn.Module):
+    """Apply W8A8 quantization: int8 dynamic activations + int8 per-channel weights.
+
+    Quantizes all ``nn.Linear`` layers in-place using TorchAO's
+    ``Int8DynamicActivationIntxWeightConfig`` with int8 weights and
+    per-channel granularity.  This is the standard W8A8 dynamic
+    quantization used for transformer and VAE components.
+
+    Conv layers are left in fp32 — XNNPACK will still accelerate them
+    with its optimised fp32 conv kernels.
+    """
+    from torchao.quantization import (
+        Int8DynamicActivationIntxWeightConfig,
+        quantize_,
+    )
+    from torchao.quantization.granularity import PerAxis
+    from torchao.utils import unwrap_tensor_subclass
+
+    def filter_fn(m, fqn):
+        return isinstance(m, nn.Linear)
+
+    logger.info("Applying W8A8 quantization (int8 weights per-channel, "
+                "int8 dynamic activations) …")
+    quantize_(
+        model,
+        Int8DynamicActivationIntxWeightConfig(
+            weight_dtype=torch.int8,
+            weight_granularity=PerAxis(0),
+        ),
+        filter_fn=filter_fn,
+    )
+    unwrap_tensor_subclass(model)
+    logger.info("W8A8 quantization complete.")
+
+
 class _QuantizedEmbedding(nn.Module):
     """int8 per-channel quantized embedding using ExecuTorch's native op.
 
@@ -665,6 +700,11 @@ def main():
                          "reduces text-encoder size by ~4× vs fp32.")
     p.add_argument("--group_size", type=int, default=128,
                     help="Group size for 8da4w weight quantization (default: 128)")
+    p.add_argument("--w8a8", action="store_true",
+                    help="Apply W8A8 quantization (int8 dynamic activation + "
+                         "int8 per-channel weight) to the transformer and VAE "
+                         "via TorchAO source transforms.  Linear layers are "
+                         "quantized; conv layers remain fp32.")
     p.add_argument("--embedding_quantize", type=int, default=0, metavar="BITS",
                     help="Quantize nn.Embedding layers to BITS-bit (e.g. 8 for "
                          "int8).  Matches ExecuTorch's 'embedding_quantize: 8,0'.  "
@@ -710,15 +750,20 @@ def main():
     vae_sf = _get_vae_scale_factor(pipe)
     patch_h, patch_w = _compute_latent_dims(args.height, args.width, vae_sf)
     te_quant_mode = "8da4w" if args.text_encoder_8da4w else ("int8" if args.quantize else "none")
+    tf_quant_mode = "w8a8" if args.w8a8 else ("int8_pt2e" if args.quantize else "none")
+    vae_quant_mode = "w8a8" if args.w8a8 else ("int8_pt2e" if args.quantize else "none")
+    any_quantized = args.quantize or args.text_encoder_8da4w or args.w8a8
     meta = {
         "model_id": args.model_id,
         "height": args.height,
         "width": args.width,
         "max_text_len": args.max_text_len,
-        "quantized": args.quantize or args.text_encoder_8da4w,
+        "quantized": any_quantized,
         "text_encoder_quantization": te_quant_mode,
         "text_encoder_group_size": args.group_size if args.text_encoder_8da4w else None,
         "text_encoder_embedding_quantize": args.embedding_quantize if args.embedding_quantize > 0 else None,
+        "transformer_quantization": tf_quant_mode,
+        "vae_quantization": vae_quant_mode,
         "is_distilled": is_distilled,
         "num_inference_steps": 4 if is_distilled else 50,
         "guidance_scale": 1.0 if is_distilled else 4.0,
@@ -796,6 +841,12 @@ def main():
 
     # ---- export transformer --------------------------------------------
     if args.component in ("all", "transformer"):
+        tf_use_w8a8 = args.w8a8
+        if tf_use_w8a8:
+            logger.info("W8A8 requested — quantizing transformer before wrapping …")
+            pipe.transformer = pipe.transformer.float()
+            apply_w8a8_quantization(pipe.transformer)
+
         wrapper = Flux2TransformerWrapper(pipe.transformer).eval()
 
         # Always export the text-to-image transformer (no image tokens)
@@ -816,7 +867,8 @@ def main():
 
         export_component_to_xnnpack(
             wrapper, t2i_inputs, str(out / "transformer.pte"),
-            quantize=args.quantize,
+            quantize=args.quantize if not tf_use_w8a8 else False,
+            use_dynamic_quant_partitioner=tf_use_w8a8,
         )
         del t2i_inputs
         _free_memory()
@@ -843,13 +895,22 @@ def main():
             export_component_to_xnnpack(
                 wrapper, img2img_inputs,
                 str(out / "transformer_img2img.pte"),
-                quantize=args.quantize,
+                quantize=args.quantize if not tf_use_w8a8 else False,
+                use_dynamic_quant_partitioner=tf_use_w8a8,
             )
             del img2img_inputs
             _free_memory()
 
         del wrapper
         _free_memory()
+
+    # ---- quantize VAE once (shared by decoder + encoder) -----------------
+    vae_quantized_w8a8 = False
+    if args.w8a8 and args.component in ("all", "vae", "vae_encoder"):
+        logger.info("W8A8 requested — quantizing VAE linear layers …")
+        pipe.vae = pipe.vae.float()
+        apply_w8a8_quantization(pipe.vae)
+        vae_quantized_w8a8 = True
 
     # ---- export VAE decoder --------------------------------------------
     if args.component in ("all", "vae"):
@@ -869,7 +930,8 @@ def main():
 
         export_component_to_xnnpack(
             wrapper, inputs, str(out / "vae_decoder.pte"),
-            quantize=args.quantize,
+            quantize=args.quantize if not vae_quantized_w8a8 else False,
+            use_dynamic_quant_partitioner=vae_quantized_w8a8,
         )
         del wrapper, inputs
         _free_memory()
@@ -896,7 +958,8 @@ def main():
 
         export_component_to_xnnpack(
             wrapper, inputs, str(out / "vae_encoder.pte"),
-            quantize=args.quantize,
+            quantize=args.quantize if not vae_quantized_w8a8 else False,
+            use_dynamic_quant_partitioner=vae_quantized_w8a8,
         )
         del wrapper, inputs
         _free_memory()

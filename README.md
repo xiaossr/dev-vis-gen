@@ -38,6 +38,13 @@ cd dev-vis-gen
 python export_flux2_klein_xnnpack.py \
     --output_dir ./exported_flux2_klein
 
+# With w4da8 quantization for text encoder, w8a8 for other components 
+python export_flux2_klein_xnnpack.py \
+    --output_dir ./exported_flux2_klein \
+    --text_encoder_8da4w \
+    --embedding_quantize 8 \
+    --w8a8
+
 # With w4da8 quantization for text encoder, fp32 for other components 
 python export_flux2_klein_xnnpack.py \
     --output_dir ./exported_flux2_klein \
