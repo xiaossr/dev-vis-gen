@@ -250,7 +250,7 @@ adb shell "cd /data/local/tmp/flux2 && \
 
 ```bash
 adb pull /data/local/tmp/flux2/output.ppm .
-convert output.ppm output.png    # optional: convert to PNG
+magick output.ppm output.png    # optional: convert to PNG
 ```
 
 ## Command-Line Flags
