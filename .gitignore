@@ -1,1 +1,8 @@
 exported_flux2_klein/
+/qairt/
+
+__pycache__/
+.claude/
+.local-libs*/
+/exported_flux2_klein_qairt/
+/tmp_*
