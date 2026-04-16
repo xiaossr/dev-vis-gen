@@ -1,8 +1,21 @@
+# ExecuTorch tree (local clone / build checkout — not tracked here)
+/executorch/
+
+# Export output directories
 exported_flux2_klein/
+/exported_flux2_klein_qairt/
+/exported_flux2_klein_qnn/
+exported_models/
 /qairt/
+
+# Bundles and Qualcomm compiler artifacts
+*.pte
+*.dlc
+
+# Local backups / scratch trees
+/executorch-examples-bak/
 
 __pycache__/
 .claude/
 .local-libs*/
-/exported_flux2_klein_qairt/
 /tmp_*

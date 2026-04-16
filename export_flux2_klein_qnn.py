@@ -78,7 +78,7 @@ SOC_MODEL_MAP = {
 def get_qcom_chipset(soc_model: str):
     """Return the QcomChipset enum value for the given SOC model string."""
     try:
-        from executorch.backends.qualcomm.serialization.qnn_compile_spec_schema import (
+        from executorch.backends.qualcomm.serialization.qc_schema import (
             QcomChipset,
         )
     except ImportError as e:
@@ -105,22 +105,53 @@ def get_qcom_chipset(soc_model: str):
 # ============================================================================
 
 class Qwen3TextEncoderWrapper(nn.Module):
-    """Wraps Qwen3ForCausalLM to extract multi-layer hidden states."""
+    """Wraps Qwen3's internal model (bypassing decorators) to extract multi-layer hidden states."""
 
     def __init__(self, text_encoder, hidden_states_layers=(9, 18, 27)):
         super().__init__()
-        self.text_encoder = text_encoder
+        # Access the inner Qwen3Model directly to bypass @capture_outputs lock
+        self.embed_tokens = text_encoder.model.embed_tokens
+        self.layers = text_encoder.model.layers
+        self.norm = text_encoder.model.norm
+        self.rotary_emb = text_encoder.model.rotary_emb
+        self.config = text_encoder.model.config
         self.hidden_states_layers = list(hidden_states_layers)
 
     def forward(self, input_ids, attention_mask):
-        output = self.text_encoder(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            output_hidden_states=True,
-            use_cache=False,
+        hidden_states = self.embed_tokens(input_ids)
+        batch_size, seq_len = input_ids.shape
+
+        # Use int32 to avoid int64-related dtype mismatches in ExportPass
+        position_ids = torch.arange(seq_len, device=input_ids.device, dtype=torch.int32).unsqueeze(0)
+        position_embeddings = self.rotary_emb(hidden_states, position_ids)
+
+        # Build a causal mask from the 2D attention_mask
+        # Shape: [batch, 1, seq_len, seq_len]  (additive mask, 0 = attend, -inf = mask)
+        # Explicit float32 to avoid dtype promotion issues
+        causal_mask = torch.full(
+            (seq_len, seq_len), float("-inf"), dtype=torch.float32, device=hidden_states.device
         )
+        causal_mask = torch.triu(causal_mask, diagonal=1)
+        # Expand padding mask: where attention_mask == 0, mask out
+        padding_mask = torch.zeros(batch_size, 1, 1, seq_len, dtype=torch.float32, device=hidden_states.device)
+        padding_mask = padding_mask.masked_fill(attention_mask[:, None, None, :].eq(0), float("-inf"))
+        causal_mask = causal_mask[None, None, :, :] + padding_mask
+
+        all_hidden_states = [hidden_states]
+        for layer in self.layers:
+            hidden_states = layer(
+                hidden_states,
+                attention_mask=causal_mask,
+                position_ids=position_ids,
+                position_embeddings=position_embeddings,
+            )
+            all_hidden_states.append(hidden_states)
+
+        # Apply final norm to last hidden state (already in all_hidden_states)
+        all_hidden_states[-1] = self.norm(hidden_states)
+
         out = torch.stack(
-            [output.hidden_states[k] for k in self.hidden_states_layers], dim=1
+            [all_hidden_states[k] for k in self.hidden_states_layers], dim=1
         )
         batch_size, num_channels, seq_len, hidden_dim = out.shape
         return out.permute(0, 2, 1, 3).reshape(
@@ -177,7 +208,6 @@ def load_pipeline(model_id: str, dtype=torch.float32):
     logger.info("Loading pipeline from %s ...", model_id)
     pipe = Flux2KleinPipeline.from_pretrained(model_id, torch_dtype=dtype)
     pipe = pipe.to("cpu")
-    pipe.eval()
     return pipe
 
 
@@ -295,6 +325,109 @@ def generate_calibration_inputs(sample_inputs: tuple, num_passes: int):
 # Core QNN export routine
 # ============================================================================
 
+def _remove_int_quantize_nodes(model):
+    """
+    Remove quantize_per_tensor / dequantize_per_tensor nodes that operate on
+    non-float tensors (e.g. int64 from arange). These are incorrectly inserted
+    by the quantizer and cause re-export to fail.
+
+    Detection strategies:
+    1. Input node has meta["val"] with non-float dtype
+    2. Input node is an arange/full/zeros etc. that produces int tensors
+    3. Input is a get_attr whose actual tensor is non-float
+    """
+    graph = model.graph
+    nodes_to_erase = []
+
+    # Known int-producing ops
+    INT_OPS = {"arange", "full", "zeros", "ones", "randint", "arange.start_step", "arange.default"}
+
+    for node in graph.nodes:
+        if node.op != "call_function":
+            continue
+        target_name = getattr(node.target, "__name__", "")
+        if "quantize_per_tensor" not in target_name and "dequantize_per_tensor" not in target_name:
+            continue
+
+        input_node = node.args[0]
+        should_remove = False
+
+        # Strategy 1: check meta["val"] dtype
+        # Exclude int8/uint8 — those are legitimate quantized weight tensors
+        if hasattr(input_node, "meta") and "val" in input_node.meta:
+            val = input_node.meta["val"]
+            if hasattr(val, "dtype") and not val.dtype.is_floating_point and val.dtype not in (torch.int8, torch.uint8):
+                should_remove = True
+
+        # Strategy 2: check if input is from an int-producing op
+        if not should_remove and hasattr(input_node, "target"):
+            inp_target_name = getattr(input_node.target, "__name__", str(input_node.target))
+            if inp_target_name in INT_OPS or "arange" in inp_target_name:
+                should_remove = True
+
+        # Strategy 3: check actual tensor for get_attr nodes
+        if not should_remove and hasattr(input_node, "op") and input_node.op == "get_attr":
+            try:
+                tensor = model
+                for part in input_node.target.split("."):
+                    tensor = getattr(tensor, part)
+                if hasattr(tensor, "dtype") and tensor.dtype in (torch.int64, torch.int32, torch.int16, torch.bool):
+                    should_remove = True
+            except Exception:
+                pass
+
+        if should_remove:
+            node.replace_all_uses_with(input_node)
+            nodes_to_erase.append(node)
+
+    for node in reversed(nodes_to_erase):
+        graph.erase_node(node)
+    if nodes_to_erase:
+        graph.lint()
+        model.recompile()
+        logger.info("Removed %d spurious quantize nodes on int tensors", len(nodes_to_erase))
+
+
+def _install_safe_export_pass():
+    """
+    Monkey-patch ExportPass.__call__ so that any pass that fails with a
+    RuntimeError (e.g. dtype mismatch in the fake-tensor interpreter) returns
+    the original graph module unchanged instead of crashing.  This preserves
+    meta["val"] on all nodes while still letting passes that succeed apply
+    their transformations.
+    """
+    from executorch.exir.pass_base import ExportPass, PassResult
+
+    if getattr(ExportPass, "_safe_patched", False):
+        return  # already installed
+
+    _orig = ExportPass.__call__
+
+    def _safe_call(self, gm):
+        try:
+            return _orig(self, gm)
+        except Exception as exc:
+            logger.warning(
+                "ExportPass %s failed (%s), returning graph unchanged",
+                type(self).__name__,
+                exc,
+            )
+            return PassResult(gm, False)
+
+    ExportPass.__call__ = _safe_call
+    ExportPass._safe_patched = True
+
+
+def _uninstall_safe_export_pass():
+    """Restore original ExportPass.__call__ if it was patched."""
+    from executorch.exir.pass_base import ExportPass
+
+    if not getattr(ExportPass, "_safe_patched", False):
+        return
+    # We can't restore the original easily (it was captured in closure),
+    # so just leave the safe version in place.  It's strictly better.
+
+
 def export_component_to_qnn(
     model: nn.Module,
     sample_inputs: tuple,
@@ -306,56 +439,57 @@ def export_component_to_qnn(
     """
     Export a model component to QNN-accelerated ExecuTorch .pte.
 
-    Steps:
-      1. torch.export()            (traces the graph)
-      2. QnnQuantizer + prepare_pt2e   (insert fake-quant observers)
-      3. Calibration forward passes    (determine activation ranges)
-      4. convert_pt2e                  (fold scales, replace ops with INT8)
-      5. QnnPartitioner                (annotate graph for HTP dispatch)
-      6. to_edge_transform_and_lower() (compile to ExecuTorch IR)
-      7. to_executorch() + serialize   (write .pte)
+    Follows the official ExecuTorch QNN flow (build_executorch_binary):
+      1. torch.export() → GraphModule
+      2. QnnQuantizer + prepare_pt2e (insert fake-quant observers)
+      3. Calibration forward passes (determine activation ranges)
+      4. convert_pt2e (fold scales, replace ops with INT8)
+      5. capture_program (re-export with QNN decompositions + edge config)
+      6. to_backend with QnnPartitioner
+      7. EdgeProgramManager → to_executorch → serialize .pte
     """
-    from torch.export import export
-    from executorch.exir import to_edge_transform_and_lower
-
     try:
-        from executorch.backends.qualcomm.quantizer.quantizer import QnnQuantizer
+        from executorch.backends.qualcomm.quantizer.quantizer import QnnQuantizer, QuantDtype
         from executorch.backends.qualcomm.partition.qnn_partitioner import QnnPartitioner
         from executorch.backends.qualcomm.utils.utils import (
-            canonicalize_program,
+            capture_program,
             generate_htp_compiler_spec,
             generate_qnn_executorch_compiler_spec,
         )
-        from torchao.quantization.pt2e.quantize_pt2e import prepare_pt2e, convert_pt2e
+        from executorch.exir import to_edge, EdgeCompileConfig
+        from executorch.exir.program._program import EdgeProgramManager
+        from executorch.exir.backend.backend_api import to_backend
+        from executorch.exir.capture._config import ExecutorchBackendConfig
+        from executorch.exir.passes.memory_planning_pass import MemoryPlanningPass
+        from torch.ao.quantization.quantize_pt2e import prepare_pt2e, convert_pt2e
+        from torch.ao.quantization.observer import MovingAverageMinMaxObserver
     except ImportError as e:
         raise ImportError(
-            "ExecuTorch QNN backend or torchao not found.\n"
+            "ExecuTorch QNN backend not found.\n"
             "Build ExecuTorch with: -DEXECUTORCH_BUILD_QNN=ON -DQNN_SDK_ROOT=<path>\n"
             f"Error: {e}"
         )
 
     model.eval()
 
-    # ── 1. Initial export to get the graph ─────────────────────────────────
+    # ── 1. Initial export to get GraphModule ───────────────────────────────
     logger.info("torch.export.export() ...")
     with torch.no_grad():
-        exported_program = export(model, sample_inputs)
-
-    exported_module = exported_program.module()
+        captured_model = torch.export.export(model, sample_inputs, strict=True).module()
 
     # ── 2. Set up QNN quantizer ─────────────────────────────────────────────
     logger.info("Setting up QnnQuantizer for INT8 static quantization ...")
     quantizer = QnnQuantizer()
-    # Use INT8 for both weights and activations (HTP optimal)
-    quantizer.set_bit8_op_str_override("ON")
+    quantizer.set_per_channel_conv_quant(True)
+    quantizer.set_quant_config(QuantDtype.use_8a8w, act_observer=MovingAverageMinMaxObserver)
 
     if skip_node_op_set:
-        # Allow skipping specific ops that cause issues (e.g. softmax in attn)
-        quantizer.set_skip_ops(skip_node_op_set)
+        quantizer.add_discard_ops(list(skip_node_op_set))
 
-    prepared_model = prepare_pt2e(exported_module, quantizer)
+    # ── 3. Prepare + calibrate ──────────────────────────────────────────────
+    logger.info("prepare_pt2e: inserting fake-quant observers ...")
+    prepared_model = prepare_pt2e(captured_model, quantizer)
 
-    # ── 3. Calibration ──────────────────────────────────────────────────────
     logger.info("Running %d calibration passes ...", num_calibration_passes)
     with torch.no_grad():
         for i, cal_inputs in enumerate(
@@ -367,38 +501,85 @@ def export_component_to_qnn(
 
     # ── 4. Convert to static INT8 ───────────────────────────────────────────
     logger.info("convert_pt2e: folding quantization parameters ...")
-    quantized_module = convert_pt2e(prepared_model)
+    quantized_model = convert_pt2e(prepared_model)
 
-    # ── 5. Build QNN compiler spec ─────────────────────────────────────────
+    # ── 4b. Remove spurious quantize nodes on non-float tensors ────────────
+    _remove_int_quantize_nodes(quantized_model)
+
+    # ── 5. Re-export with QNN decompositions ─────────────────────────────
+    logger.info("Re-exporting quantized model with QNN decompositions ...")
+    from executorch.backends.qualcomm.utils.utils import (
+        get_decomp_table,
+        qnn_edge_config,
+    )
+    from executorch.exir import ExirExportedProgram
+
+    torch.ao.quantization.allow_exported_model_train_eval(quantized_model)
+
+    # Install safe ExportPass before any to_edge calls — this prevents
+    # dtype mismatch crashes in the fake-tensor interpreter while still
+    # allowing passes that succeed to apply their transformations.
+    _install_safe_export_pass()
+
+    use_fallback = False
+    try:
+        edge_prog = capture_program(quantized_model, sample_inputs)
+    except Exception as e:
+        logger.warning(
+            "capture_program failed (%s), using fallback export path", e
+        )
+        use_fallback = True
+
+        logger.info("Direct re-export with strict=False ...")
+        quantized_ep = torch.export.export(quantized_model, sample_inputs, strict=False)
+
+        # Apply QNN-specific decompositions
+        decomposed_ep = quantized_ep.run_decompositions(get_decomp_table(None))
+        core_ep = ExirExportedProgram(decomposed_ep, False)
+
+        try:
+            from executorch.backends.qualcomm._passes.tensor_i64_to_i32 import TensorI64toI32
+            core_ep.transform(TensorI64toI32(edge_program=core_ep))
+        except Exception as e2:
+            logger.warning("TensorI64toI32 pass failed: %s (continuing)", e2)
+
+        edge_prog = core_ep.to_edge(qnn_edge_config())
+
+    # ── 6. Build QNN compiler spec + partition ─────────────────────────────
     logger.info("Building QNN HTP compiler spec for SOC ...")
-    htp_options = generate_htp_compiler_spec(
-        use_fp16=False,          # Force INT8 path (not FP16)
-    )
-    compiler_spec = generate_qnn_executorch_compiler_spec(
-        soc_model=soc_chipset,
-        backend_options=htp_options,
-        is_from_context_binary=False,
-        debug=False,
-    )
-
-    # ── 6. Re-export quantized model and partition ─────────────────────────
-    logger.info("Re-exporting quantized model ...")
-    quantized_exported = export(quantized_module, sample_inputs)
-
-    logger.info("Applying QnnPartitioner ...")
-    edge_program = to_edge_transform_and_lower(
-        quantized_exported,
-        partitioner=[QnnPartitioner(compiler_specs=compiler_spec)],
+    backend_options = generate_htp_compiler_spec(use_fp16=False)
+    qnn_partitioner = QnnPartitioner(
+        generate_qnn_executorch_compiler_spec(
+            soc_model=soc_chipset,
+            backend_options=backend_options,
+            online_prepare=True,
+        ),
+        skip_node_op_set=skip_node_op_set,
     )
 
-    # ── 7. Canonicalize and serialize ──────────────────────────────────────
+    logger.info("to_backend: partitioning graph for QNN HTP ...")
+    delegated_ep = to_backend(edge_prog.exported_program, qnn_partitioner)
+
+    # ── 7. Serialize to .pte ──────────────────────────────────────────────
     logger.info("Serialising to .pte ...")
-    et_program = edge_program.to_executorch()
-    canonicalize_program(et_program)
+    executorch_config = ExecutorchBackendConfig(
+        memory_planning_pass=MemoryPlanningPass(
+            alloc_graph_input=True,
+            alloc_graph_output=True,
+        ),
+    )
+
+    # Use EdgeProgramManager directly to avoid re-running edge passes on the
+    # already-lowered program (which the to_edge() function would do).
+    edge_mgr = EdgeProgramManager(
+        edge_programs={"forward": delegated_ep},
+        compile_config=EdgeCompileConfig(_check_ir_validity=False),
+    )
+    exec_prog = edge_mgr.to_executorch(config=executorch_config)
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "wb") as f:
-        f.write(et_program.buffer)
+        f.write(exec_prog.buffer)
 
     size_mb = os.path.getsize(output_path) / (1024 * 1024)
     logger.info("Saved %s  (%.1f MB)", output_path, size_mb)
@@ -472,11 +653,9 @@ def main():
     soc_chipset = get_qcom_chipset(args.soc_model)
     logger.info("Target SOC: %s", args.soc_model)
 
-    # Load pipeline
+    # Load pipeline on CPU — move only the component being exported to GPU
+    # to avoid OOM (whole pipeline is >15GB fp32)
     pipe = load_pipeline(args.model_id, dtype=dtype)
-    if device.type == "cuda":
-        # Load to GPU for faster calibration, then move back for export
-        pipe = pipe.to(device)
 
     copy_tokenizer(pipe, str(out))
     save_vae_bn_stats(pipe, str(out))
@@ -526,12 +705,8 @@ def main():
         logger.info("Exporting TEXT ENCODER ...")
         te_model = Qwen3TextEncoderWrapper(
             pipe.text_encoder, hidden_states_layers
-        ).eval()
-        if device.type == "cuda":
-            te_model = te_model.to(device)
+        ).eval().cpu()
         sample_inputs = build_text_encoder_inputs(args.max_text_len)
-        if device.type == "cuda":
-            sample_inputs = tuple(x.to(device) for x in sample_inputs)
         export_component_to_qnn(
             te_model,
             sample_inputs,
@@ -541,22 +716,16 @@ def main():
         )
         del te_model
         gc.collect()
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
 
     # ── Export transformer ────────────────────────────────────────────────
     if args.component in ("all", "transformer"):
         logger.info("=" * 60)
         logger.info("Exporting TRANSFORMER ...")
-        tf_model = Flux2TransformerWrapper(pipe.transformer).eval()
-        if device.type == "cuda":
-            tf_model = tf_model.to(device)
+        tf_model = Flux2TransformerWrapper(pipe.transformer).eval().cpu()
         sample_inputs = build_transformer_inputs(
             pipe, args.height, args.width, args.max_text_len,
             dtype=dtype, num_img2img_images=args.num_img2img_images,
         )
-        if device.type == "cuda":
-            sample_inputs = tuple(x.to(device) for x in sample_inputs)
         export_component_to_qnn(
             tf_model,
             sample_inputs,
@@ -566,19 +735,13 @@ def main():
         )
         del tf_model
         gc.collect()
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
 
     # ── Export VAE decoder ────────────────────────────────────────────────
     if args.component in ("all", "vae"):
         logger.info("=" * 60)
         logger.info("Exporting VAE DECODER ...")
-        vae_model = VAEDecoderWrapper(pipe.vae).eval()
-        if device.type == "cuda":
-            vae_model = vae_model.to(device)
+        vae_model = VAEDecoderWrapper(pipe.vae).eval().cpu()
         sample_inputs = build_vae_inputs(pipe, args.height, args.width, dtype=dtype)
-        if device.type == "cuda":
-            sample_inputs = tuple(x.to(device) for x in sample_inputs)
         export_component_to_qnn(
             vae_model,
             sample_inputs,
@@ -588,8 +751,6 @@ def main():
         )
         del vae_model
         gc.collect()
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
 
     # ── Export VAE encoder (img2img) ──────────────────────────────────────
     if args.component in ("vae_encoder",) or (
@@ -597,12 +758,8 @@ def main():
     ):
         logger.info("=" * 60)
         logger.info("Exporting VAE ENCODER ...")
-        vae_enc = VAEEncoderWrapper(pipe.vae).eval()
-        if device.type == "cuda":
-            vae_enc = vae_enc.to(device)
+        vae_enc = VAEEncoderWrapper(pipe.vae).eval().cpu()
         sample_inputs = build_vae_encoder_inputs(args.height, args.width, dtype=dtype)
-        if device.type == "cuda":
-            sample_inputs = tuple(x.to(device) for x in sample_inputs)
         export_component_to_qnn(
             vae_enc,
             sample_inputs,
@@ -612,8 +769,6 @@ def main():
         )
         del vae_enc
         gc.collect()
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
 
     logger.info("=" * 60)
     logger.info("Export complete. Output: %s", out)

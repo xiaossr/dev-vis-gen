@@ -608,6 +608,198 @@ def _resolve_reshape_shapes(model):
     return model
 
 
+def _fold_constant_chains(model):
+    """Fold Constant->Cast->Reshape chains so Slice/Gather params become static initializers.
+
+    The dynamo ONNX exporter produces patterns like:
+      Constant(val=0) -> Cast(to=int64) -> Reshape([1]) -> Slice(starts=...)
+    QAIRT needs Slice params to be constant initializers, not computed values.
+    This pass evaluates these chains and replaces them with direct initializers.
+    """
+    import onnx
+
+    graph = model.graph
+
+    # Build output->node map
+    producer = {}
+    for node in graph.node:
+        for out in node.output:
+            producer[out] = node
+
+    # Build initializer value map
+    init_vals = {}
+    for init in graph.initializer:
+        if len(init.raw_data) <= 1024:
+            try:
+                init_vals[init.name] = onnx.numpy_helper.to_array(init)
+            except Exception:
+                pass
+
+    # Collect Constant node values
+    for node in graph.node:
+        if node.op_type == "Constant":
+            for attr in node.attribute:
+                if attr.name == "value" and attr.t is not None:
+                    try:
+                        init_vals[node.output[0]] = onnx.numpy_helper.to_array(attr.t)
+                    except Exception:
+                        pass
+
+    def _eval(name, depth=0):
+        """Try to evaluate a value to a numpy array by tracing constant chains."""
+        if depth > 10:
+            return None
+        if name in init_vals:
+            return init_vals[name]
+        if name not in producer:
+            return None
+
+        node = producer[name]
+
+        if node.op_type == "Constant":
+            for attr in node.attribute:
+                if attr.name == "value" and attr.t is not None:
+                    try:
+                        val = onnx.numpy_helper.to_array(attr.t)
+                        init_vals[name] = val
+                        return val
+                    except Exception:
+                        return None
+            return None
+
+        if node.op_type == "Cast":
+            src = _eval(node.input[0], depth + 1)
+            if src is None:
+                return None
+            to_type = None
+            for attr in node.attribute:
+                if attr.name == "to":
+                    to_type = attr.i
+            if to_type is None:
+                return None
+            dtype_map = {1: np.float32, 6: np.int32, 7: np.int64, 11: np.float64}
+            if to_type in dtype_map:
+                val = src.astype(dtype_map[to_type])
+                init_vals[name] = val
+                return val
+            return None
+
+        if node.op_type == "Reshape":
+            src = _eval(node.input[0], depth + 1)
+            shape = _eval(node.input[1], depth + 1)
+            if src is not None and shape is not None:
+                try:
+                    val = src.reshape(shape.astype(np.int64).tolist())
+                    init_vals[name] = val
+                    return val
+                except Exception:
+                    return None
+            return None
+
+        if node.op_type == "Unsqueeze":
+            src = _eval(node.input[0], depth + 1)
+            if src is None:
+                return None
+            axes = None
+            if len(node.input) > 1:
+                axes = _eval(node.input[1], depth + 1)
+            else:
+                for attr in node.attribute:
+                    if attr.name == "axes":
+                        axes = np.array(list(attr.ints), dtype=np.int64)
+            if axes is not None:
+                val = src
+                for ax in sorted(axes.flatten().tolist()):
+                    val = np.expand_dims(val, axis=ax)
+                init_vals[name] = val
+                return val
+            return None
+
+        if node.op_type == "Squeeze":
+            src = _eval(node.input[0], depth + 1)
+            if src is None:
+                return None
+            if len(node.input) > 1:
+                axes = _eval(node.input[1], depth + 1)
+            else:
+                axes = None
+                for attr in node.attribute:
+                    if attr.name == "axes":
+                        axes = np.array(list(attr.ints), dtype=np.int64)
+            if axes is not None:
+                val = np.squeeze(src, axis=tuple(axes.flatten().tolist()))
+            else:
+                val = np.squeeze(src)
+            init_vals[name] = val
+            return val
+
+        return None
+
+    # Fold Slice parameters
+    folded = 0
+    for node in graph.node:
+        if node.op_type == "Slice":
+            for i in range(1, len(node.input)):
+                inp_name = node.input[i]
+                if not inp_name or inp_name in {init.name for init in graph.initializer}:
+                    continue
+                val = _eval(inp_name)
+                if val is not None:
+                    new_name = f"{inp_name}__folded"
+                    graph.initializer.append(
+                        onnx.numpy_helper.from_array(val, name=new_name)
+                    )
+                    node.input[i] = new_name
+                    folded += 1
+
+    logger.info("Folded %d Slice parameters into constants", folded)
+    return model
+
+
+def _rename_conflicting_tensors(model):
+    """Rename tensor names that conflict with QAIRT internal naming.
+
+    The dynamo exporter produces names like t_0, t_1, ... t_N which collide
+    with QAIRT's internal buffer naming scheme, causing 'Duplicate buffer name'
+    errors during IR optimization.
+    """
+    import re
+
+    graph = model.graph
+    t_pattern = re.compile(r"^t_\d+$")
+
+    # Collect all names that need renaming
+    rename_map = {}
+    for node in graph.node:
+        for out in node.output:
+            if t_pattern.match(out):
+                rename_map[out] = f"flux_{out}"
+
+    if not rename_map:
+        return model
+
+    # Apply renames to all node inputs and outputs
+    for node in graph.node:
+        for i, inp in enumerate(node.input):
+            if inp in rename_map:
+                node.input[i] = rename_map[inp]
+        for i, out in enumerate(node.output):
+            if out in rename_map:
+                node.output[i] = rename_map[out]
+
+    # Also rename in graph inputs/outputs/value_info
+    for vi in list(graph.value_info) + list(graph.input) + list(graph.output):
+        if vi.name in rename_map:
+            vi.name = rename_map[vi.name]
+
+    for init in graph.initializer:
+        if init.name in rename_map:
+            init.name = rename_map[init.name]
+
+    logger.info("Renamed %d tensors to avoid QAIRT naming conflicts", len(rename_map))
+    return model
+
+
 def _save_onnx_model(model, target_path):
     """Save ONNX model, falling back to external data if protobuf is too large."""
     import onnx
@@ -653,18 +845,56 @@ def simplify_onnx(onnx_path, has_external_data=False):
 
 
 def resolve_onnx_reshapes(onnx_path, out_path=None):
-    """Resolve Reshape shapes in an ONNX model without full onnxsim (for large models)."""
+    """Resolve Reshape shapes in an ONNX model without full onnxsim (for large models).
+
+    Uses path-based shape inference to avoid protobuf 2GB serialization limit,
+    then loads the model with external data to resolve Reshape shapes in-place.
+    """
     import onnx
 
     if out_path is None:
         out_path = onnx_path.replace(".onnx", "_resolved.onnx")
     logger.info("Resolving Reshape shapes: %s -> %s", onnx_path, out_path)
 
-    model = onnx.load(onnx_path)
-    model = onnx.shape_inference.infer_shapes(model)
-    model = _resolve_reshape_shapes(model)
+    # Step 1: Run shape inference via file path (avoids in-memory 2GB protobuf limit).
+    # Write output in-place to preserve external data file references.
+    onnx.shape_inference.infer_shapes_path(onnx_path, out_path)
+    logger.info("Shape inference done (path-based): %s", out_path)
 
-    _save_onnx_model(model, out_path)
+    # Step 2: Load graph structure only (no weights) to fix up the graph.
+    model = onnx.load(out_path, load_external_data=False)
+    model = _resolve_reshape_shapes(model)
+    model = _fold_constant_chains(model)
+    model = _rename_conflicting_tensors(model)
+
+    # Step 3: Save back. External data references in initializers still point
+    # to the original .data file. If the output is in a different location,
+    # we need the data file alongside it.
+    src_data = onnx_path + ".data"
+    out_data = out_path + ".data"
+    # ONNX rejects symlinks/hard links for external data (security check).
+    # If in/out are in the same dir, just reference the same .data file.
+    # If different dirs, must copy (expensive for 15GB).
+    if os.path.exists(src_data):
+        if os.path.dirname(os.path.abspath(src_data)) == os.path.dirname(os.path.abspath(out_path)):
+            # Same directory — just point to the existing data file
+            target_data_name = os.path.basename(src_data)
+            logger.info("Reusing external data file: %s", target_data_name)
+        elif not os.path.exists(out_data):
+            shutil.copy2(src_data, out_data)
+            target_data_name = os.path.basename(out_data)
+            logger.info("Copied external data: %s (%.1f GB)",
+                         out_data, os.path.getsize(out_data) / (1024**3))
+        else:
+            target_data_name = os.path.basename(out_data)
+
+        for tensor in model.graph.initializer:
+            for entry in tensor.external_data:
+                if entry.key == "location":
+                    entry.value = target_data_name
+
+    onnx.save_model(model, out_path)
+
     size_mb = os.path.getsize(out_path) / (1024 * 1024)
     logger.info("Resolved ONNX saved: %s (%.1f MB)", out_path, size_mb)
     return out_path
