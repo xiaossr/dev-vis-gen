@@ -77,6 +77,8 @@ import gc
 import json
 import logging
 import os
+import shutil
+import sys
 from pathlib import Path
 
 import torch
@@ -87,6 +89,63 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("flux2_export")
+
+
+def _ensure_flatc_on_path() -> None:
+    """Point executorch's serializer at the flatc that ships in this venv.
+
+    executorch/exir/_serialize/_flatbuffer.py checks FLATC_EXECUTABLE then PATH;
+    when launched via the interpreter directly (no `source venv/bin/activate`),
+    PATH may not include the venv's bin/, so XNNPACK lowering crashes with
+    FileNotFoundError: 'flatc' right at serialization time.
+    """
+    if os.environ.get("FLATC_EXECUTABLE"):
+        return
+    for cand in (
+        Path(sys.prefix) / "bin" / "flatc",
+        Path(sys.prefix) / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}"
+        / "site-packages" / "executorch" / "data" / "bin" / "flatc",
+    ):
+        if cand.is_file() and os.access(cand, os.X_OK):
+            os.environ["FLATC_EXECUTABLE"] = str(cand)
+            return
+    found = shutil.which("flatc")
+    if found:
+        os.environ["FLATC_EXECUTABLE"] = found
+
+
+_ensure_flatc_on_path()
+
+
+def _neutralize_transformers_pytree_registration():
+    """Replace transformers' lazy pytree registration with a no-op.
+
+    Newer transformers versions call ``_register_model_output_pytree_node``
+    from each ModelOutput's ``__post_init__``.  That function does
+    ``output_type in _registered_model_output_types`` (a Python ``set``),
+    which ``torch.export``/dynamo cannot trace.  We pre-register the output
+    types we care about eagerly, then replace the function with a no-op so
+    dynamo never sees the set lookup during tracing.
+    """
+    import transformers.utils.generic as _g
+    try:
+        from transformers.modeling_outputs import (
+            BaseModelOutputWithPast, CausalLMOutputWithPast,
+            BaseModelOutputWithPastAndCrossAttentions,
+            BaseModelOutput,
+        )
+        for t in (BaseModelOutputWithPast, CausalLMOutputWithPast,
+                  BaseModelOutputWithPastAndCrossAttentions, BaseModelOutput):
+            try:
+                _g._register_model_output_pytree_node(t)
+            except Exception:
+                pass
+    except ImportError:
+        pass
+    _g._register_model_output_pytree_node = lambda output_type: None
+
+
+_neutralize_transformers_pytree_registration()
 
 
 # ============================================================================
@@ -102,6 +161,12 @@ class Qwen3TextEncoderWrapper(nn.Module):
 
     KV-cache is disabled.  Input is fixed-length padded token IDs
     with an attention mask.
+
+    The wrapper precomputes a 4D additive causal mask and passes it in
+    the ``attention_mask`` dict slot (``"full_attention"``).  This makes
+    ``Qwen3Model`` skip ``transformers.masking_utils.create_causal_mask``,
+    which trips a ``torch.export`` dynamo bug (``aten.index.Tensor`` with
+    float index) after PT2E conversion.
     """
 
     def __init__(
@@ -118,9 +183,20 @@ class Qwen3TextEncoderWrapper(nn.Module):
         input_ids: torch.Tensor,       # (B, seq_len)  int64
         attention_mask: torch.Tensor,   # (B, seq_len)  int64
     ) -> torch.Tensor:
+        B, T = input_ids.shape
+        # Additive causal mask in fp32: 0 where allowed, -inf where masked.
+        causal_bool = torch.ones(T, T, dtype=torch.bool, device=input_ids.device).tril()
+        pad_bool = attention_mask.to(torch.bool).view(B, 1, 1, T)
+        mask_bool = causal_bool.view(1, 1, T, T) & pad_bool
+        neg_inf = torch.finfo(torch.float32).min
+        additive_mask = torch.where(
+            mask_bool,
+            torch.zeros((), dtype=torch.float32, device=input_ids.device),
+            torch.full((), neg_inf, dtype=torch.float32, device=input_ids.device),
+        )
         output = self.text_encoder(
             input_ids=input_ids,
-            attention_mask=attention_mask,
+            attention_mask={"full_attention": additive_mask},
             output_hidden_states=True,
             use_cache=False,
         )
@@ -222,18 +298,18 @@ def _free_memory():
 def apply_8da4w_quantization(model: nn.Module, group_size: int = 128):
     """Apply 8da4w quantization: int8 dynamic activations + int4 weights.
 
-    Uses the same TorchAO quantization path as ExecuTorch's LLM export
-    pipeline (``extension.llm.export``).  All ``nn.Linear`` layers whose
-    input dimension is divisible by *group_size* are quantized in-place.
+    Uses TorchAO's ``Int8DynamicActivationInt4WeightConfig`` (the same
+    quantization path as ExecuTorch's LLM export pipeline).  All
+    ``nn.Linear`` layers whose input dimension is divisible by
+    *group_size* are quantized in-place.
 
     After quantization, ``unwrap_tensor_subclass`` is called so that the
     resulting model can be traced by ``torch.export``.
     """
     from torchao.quantization import (
-        Int8DynamicActivationIntxWeightConfig,
+        Int8DynamicActivationInt4WeightConfig,
         quantize_,
     )
-    from torchao.quantization.granularity import PerGroup
     from torchao.utils import unwrap_tensor_subclass
 
     def filter_fn(m, fqn):
@@ -245,10 +321,7 @@ def apply_8da4w_quantization(model: nn.Module, group_size: int = 128):
     )
     quantize_(
         model,
-        Int8DynamicActivationIntxWeightConfig(
-            weight_dtype=torch.int4,
-            weight_granularity=PerGroup(group_size),
-        ),
+        Int8DynamicActivationInt4WeightConfig(group_size=group_size),
         filter_fn=filter_fn,
     )
     unwrap_tensor_subclass(model)
@@ -259,31 +332,27 @@ def apply_w8a8_quantization(model: nn.Module):
     """Apply W8A8 quantization: int8 dynamic activations + int8 per-channel weights.
 
     Quantizes all ``nn.Linear`` layers in-place using TorchAO's
-    ``Int8DynamicActivationIntxWeightConfig`` with int8 weights and
-    per-channel granularity.  This is the standard W8A8 dynamic
-    quantization used for transformer and VAE components.
+    ``Int8DynamicActivationInt8WeightConfig`` — int8 dynamic symmetric
+    per-token activations + int8 per-channel symmetric weights.  This is
+    "general scales" dynamic w8a8 (no calibration step required).
 
     Conv layers are left in fp32 — XNNPACK will still accelerate them
     with its optimised fp32 conv kernels.
     """
     from torchao.quantization import (
-        Int8DynamicActivationIntxWeightConfig,
+        Int8DynamicActivationInt8WeightConfig,
         quantize_,
     )
-    from torchao.quantization.granularity import PerAxis
     from torchao.utils import unwrap_tensor_subclass
 
     def filter_fn(m, fqn):
         return isinstance(m, nn.Linear)
 
     logger.info("Applying W8A8 quantization (int8 weights per-channel, "
-                "int8 dynamic activations) …")
+                "int8 dynamic per-token activations) …")
     quantize_(
         model,
-        Int8DynamicActivationIntxWeightConfig(
-            weight_dtype=torch.int8,
-            weight_granularity=PerAxis(0),
-        ),
+        Int8DynamicActivationInt8WeightConfig(),
         filter_fn=filter_fn,
     )
     unwrap_tensor_subclass(model)
@@ -529,90 +598,173 @@ def build_vae_encoder_inputs(height: int, width: int,
 # 3.  Core export routine
 # ============================================================================
 
+def _initialise_weight_observers(gm):
+    """Invoke each weight observer on its constant weight tensor.
+
+    For dynamic-activation PT2E the activation observer is a no-op
+    ``PlaceholderObserver`` (scales are computed at runtime), so only the
+    weight observer needs data.  Instead of running a full forward pass
+    (which can trip over decomposition bugs in transformer models), we
+    walk the graph and invoke each weight observer directly on its
+    ``get_attr`` input.
+    """
+    count = 0
+    for n in gm.graph.nodes:
+        if n.op != "call_module":
+            continue
+        submod = getattr(gm, n.target)
+        cls = type(submod).__name__
+        if "Observer" not in cls and "FakeQuant" not in cls:
+            continue
+        if not n.args:
+            continue
+        inp = n.args[0]
+        if getattr(inp, "op", None) != "get_attr":
+            continue
+        # Resolve the weight tensor.
+        obj = gm
+        for part in inp.target.split("."):
+            obj = getattr(obj, part)
+        submod(obj)
+        count += 1
+    logger.info("  initialised %d weight observer(s)", count)
+
+
 def export_component_to_xnnpack(
     model: nn.Module,
     sample_inputs: tuple,
     output_path: str,
     quantize: bool = False,
     use_dynamic_quant_partitioner: bool = False,
+    dynamic_w8a8: bool = False,
 ):
     """torch.export → XNNPACK partitioning → ExecuTorch serialisation.
 
-    If *quantize* is True, PT2E int8-symmetric quantization is applied
-    before lowering (requires ``torchao``).
+    If *quantize* is True, PT2E int8-symmetric **static** quantization is
+    applied (with a 10-step calibration loop) before lowering.
+
+    If *dynamic_w8a8* is True, PT2E int8-symmetric **dynamic** activation
+    quantization + int8 per-channel weights is applied. Produces the
+    quant-op pattern that ``XnnpackDynamicallyQuantizedPartitioner``
+    delegates at lowering time. No calibration data needed — activation
+    scales are computed at runtime per batch.
 
     If *use_dynamic_quant_partitioner* is True, the XNNPACK partitioner
-    is configured to handle dynamically-quantized linear ops (needed for
-    models that were source-transformed with 8da4w quantization).  Two
+    is configured to handle dynamically-quantized linear ops.  Two
     partitioners run in sequence: first one for DQ-linear nodes, then a
     greedy one for everything else.
     """
     from torch.export import export
+    from torch.nn.attention import SDPBackend, sdpa_kernel
+    from executorch.backends.xnnpack.partition.config.xnnpack_config import (
+        ConfigPrecisionType,
+    )
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import (
-        XnnpackDynamicallyQuantizedPartitioner,
         XnnpackPartitioner,
     )
-    from executorch.exir import to_edge_transform_and_lower
+    from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
 
     model.eval()
 
     # ---- optional int8 quantization (two-stage export) -----------------
-    if quantize:
-        logger.info("Applying PT2E int8 symmetric quantization …")
+    if quantize or dynamic_w8a8:
+        mode = "dynamic w8a8" if dynamic_w8a8 else "static int8"
+        logger.info("Applying PT2E %s quantization …", mode)
         try:
-            from torchao.quantization.pt2e.quantize_pt2e import (
-                convert_pt2e,
-                prepare_pt2e,
-            )
+            try:
+                from torch.ao.quantization.quantize_pt2e import (
+                    convert_pt2e,
+                    prepare_pt2e,
+                )
+            except ImportError:
+                from torchao.quantization.pt2e.quantize_pt2e import (
+                    convert_pt2e,
+                    prepare_pt2e,
+                )
             from executorch.backends.xnnpack.quantizer.xnnpack_quantizer import (
                 XNNPACKQuantizer,
                 get_symmetric_quantization_config,
             )
 
-            pre_ep = export(model, sample_inputs)
-            model = pre_ep.module()
+            try:
+                from torch.export import export_for_training
+                with sdpa_kernel([SDPBackend.MATH]), torch.no_grad():
+                    model = export_for_training(model, sample_inputs).module()
+            except ImportError:
+                with sdpa_kernel([SDPBackend.MATH]), torch.no_grad():
+                    pre_ep = export(model, sample_inputs)
+                    model = pre_ep.module()
 
             quantizer = XNNPACKQuantizer()
-            qconfig = get_symmetric_quantization_config(is_per_channel=True)
+            qconfig = get_symmetric_quantization_config(
+                is_per_channel=True,
+                is_dynamic=dynamic_w8a8,
+            )
             quantizer.set_global(qconfig)
 
             model = prepare_pt2e(model, quantizer)
 
-            logger.info("Running calibration forward passes …")
-            num_calibration_passes = 10
-            with torch.no_grad():
-                for cal_i in range(num_calibration_passes):
-                    cal_inputs = []
-                    for j, inp in enumerate(sample_inputs):
-                        if inp.is_floating_point():
-                            if inp.ndim == 1 and inp.shape[0] == 1:
-                                cal_inputs.append(
-                                    torch.full_like(inp, (cal_i + 1) / (num_calibration_passes + 1))
-                                )
+            if dynamic_w8a8:
+                logger.info("Observing weights only (skipping full forward) …")
+                _initialise_weight_observers(model)
+            else:
+                logger.info("Running calibration forward passes …")
+                num_calibration_passes = 10
+                with torch.no_grad():
+                    for cal_i in range(num_calibration_passes):
+                        cal_inputs = []
+                        for j, inp in enumerate(sample_inputs):
+                            if inp.is_floating_point():
+                                if inp.ndim == 1 and inp.shape[0] == 1:
+                                    cal_inputs.append(
+                                        torch.full_like(inp, (cal_i + 1) / (num_calibration_passes + 1))
+                                    )
+                                else:
+                                    cal_inputs.append(torch.randn_like(inp))
                             else:
-                                cal_inputs.append(torch.randn_like(inp))
-                        else:
-                            cal_inputs.append(inp)
-                    model(*cal_inputs)
-                    logger.info("  calibration %d/%d", cal_i + 1, num_calibration_passes)
+                                cal_inputs.append(inp)
+                        model(*cal_inputs)
+                        logger.info("  calibration %d/%d", cal_i + 1, num_calibration_passes)
 
             model = convert_pt2e(model)
+            try:
+                from executorch.backends.transforms.duplicate_dynamic_quant_chain import (
+                    DuplicateDynamicQuantChainPass,
+                )
+                DuplicateDynamicQuantChainPass()(model)
+                logger.info("Ran DuplicateDynamicQuantChainPass.")
+            except ImportError:
+                pass
             logger.info("Quantization complete.")
         except ImportError as exc:
             logger.warning(
                 "Quantization deps unavailable (%s); falling back to fp32.", exc
             )
             quantize = False
+            dynamic_w8a8 = False
 
     # ---- export --------------------------------------------------------
     logger.info("torch.export.export() …")
-    exported_program = export(model, sample_inputs)
+    with sdpa_kernel([SDPBackend.MATH]), torch.no_grad():
+        try:
+            exported_program = export(model, sample_inputs)
+        except Exception as first_err:
+            # PT2E-converted models can hit a dynamo bug where the re-traced
+            # attention-mask indexing has a fake-tensor dtype mismatch.
+            # Fall back to non-strict export (aotdispatch-based), which
+            # avoids dynamo and works on the already-traced graph.
+            logger.warning("Strict export failed (%s); retrying with strict=False …",
+                           type(first_err).__name__)
+            exported_program = export(model, sample_inputs, strict=False)
 
     # ---- lower to XNNPACK ----------------------------------------------
     logger.info("Lowering to XNNPACK backend …")
     if use_dynamic_quant_partitioner:
         partitioners = [
-            XnnpackDynamicallyQuantizedPartitioner(),
+            XnnpackPartitioner(
+                config_precisions=ConfigPrecisionType.DYNAMIC_QUANT,
+                per_op_mode=True,
+            ),
             XnnpackPartitioner(),
         ]
     else:
@@ -621,6 +773,11 @@ def export_component_to_xnnpack(
     edge_program = to_edge_transform_and_lower(
         exported_program,
         partitioner=partitioners,
+        compile_config=EdgeCompileConfig(
+            _core_aten_ops_exception_list=[
+                torch.ops.aten._int_mm.default,
+            ],
+        ),
     )
 
     # ---- serialise to .pte ---------------------------------------------
@@ -749,7 +906,14 @@ def main():
     vae_cfg = pipe.vae.config
     vae_sf = _get_vae_scale_factor(pipe)
     patch_h, patch_w = _compute_latent_dims(args.height, args.width, vae_sf)
-    te_quant_mode = "8da4w" if args.text_encoder_8da4w else ("int8" if args.quantize else "none")
+    if args.text_encoder_8da4w:
+        te_quant_mode = "8da4w"
+    elif args.w8a8:
+        te_quant_mode = "w8a8"
+    elif args.quantize:
+        te_quant_mode = "int8"
+    else:
+        te_quant_mode = "none"
     tf_quant_mode = "w8a8" if args.w8a8 else ("int8_pt2e" if args.quantize else "none")
     vae_quant_mode = "w8a8" if args.w8a8 else ("int8_pt2e" if args.quantize else "none")
     any_quantized = args.quantize or args.text_encoder_8da4w or args.w8a8
@@ -801,6 +965,7 @@ def main():
         logger.info("=" * 60)
 
         te_use_8da4w = args.text_encoder_8da4w
+        te_use_w8a8 = args.w8a8 and not te_use_8da4w
         if te_use_8da4w:
             logger.info("8da4w requested — quantizing Qwen3 text encoder "
                         "(group_size=%d) before wrapping …", args.group_size)
@@ -811,6 +976,9 @@ def main():
             logger.info("Quantizing text encoder embeddings to int%d …",
                         args.embedding_quantize)
             apply_embedding_quantization(pipe.text_encoder)
+
+        if te_use_w8a8:
+            pipe.text_encoder = pipe.text_encoder.float()
 
         wrapper = Qwen3TextEncoderWrapper(
             pipe.text_encoder, hidden_states_layers=hidden_states_layers,
@@ -824,10 +992,13 @@ def main():
         del test_out
         _free_memory()
 
+        te_dyn_partitioner = te_use_8da4w or te_use_w8a8
+        te_pt2e_quant = args.quantize and not te_use_8da4w and not te_use_w8a8
         export_component_to_xnnpack(
             wrapper, inputs, str(out / "text_encoder.pte"),
-            quantize=args.quantize if not te_use_8da4w else False,
-            use_dynamic_quant_partitioner=te_use_8da4w,
+            quantize=te_pt2e_quant,
+            use_dynamic_quant_partitioner=te_dyn_partitioner,
+            dynamic_w8a8=te_use_w8a8,
         )
         del wrapper, inputs
         _free_memory()
@@ -843,9 +1014,7 @@ def main():
     if args.component in ("all", "transformer"):
         tf_use_w8a8 = args.w8a8
         if tf_use_w8a8:
-            logger.info("W8A8 requested — quantizing transformer before wrapping …")
             pipe.transformer = pipe.transformer.float()
-            apply_w8a8_quantization(pipe.transformer)
 
         wrapper = Flux2TransformerWrapper(pipe.transformer).eval()
 
@@ -867,8 +1036,9 @@ def main():
 
         export_component_to_xnnpack(
             wrapper, t2i_inputs, str(out / "transformer.pte"),
-            quantize=args.quantize if not tf_use_w8a8 else False,
+            quantize=args.quantize and not tf_use_w8a8,
             use_dynamic_quant_partitioner=tf_use_w8a8,
+            dynamic_w8a8=tf_use_w8a8,
         )
         del t2i_inputs
         _free_memory()
@@ -895,8 +1065,9 @@ def main():
             export_component_to_xnnpack(
                 wrapper, img2img_inputs,
                 str(out / "transformer_img2img.pte"),
-                quantize=args.quantize if not tf_use_w8a8 else False,
+                quantize=args.quantize and not tf_use_w8a8,
                 use_dynamic_quant_partitioner=tf_use_w8a8,
+                dynamic_w8a8=tf_use_w8a8,
             )
             del img2img_inputs
             _free_memory()
@@ -904,13 +1075,10 @@ def main():
         del wrapper
         _free_memory()
 
-    # ---- quantize VAE once (shared by decoder + encoder) -----------------
-    vae_quantized_w8a8 = False
-    if args.w8a8 and args.component in ("all", "vae", "vae_encoder"):
-        logger.info("W8A8 requested — quantizing VAE linear layers …")
+    # ---- cast VAE to fp32 once (shared by decoder + encoder) -----------
+    vae_use_w8a8 = args.w8a8 and args.component in ("all", "vae", "vae_encoder")
+    if vae_use_w8a8:
         pipe.vae = pipe.vae.float()
-        apply_w8a8_quantization(pipe.vae)
-        vae_quantized_w8a8 = True
 
     # ---- export VAE decoder --------------------------------------------
     if args.component in ("all", "vae"):
@@ -930,8 +1098,9 @@ def main():
 
         export_component_to_xnnpack(
             wrapper, inputs, str(out / "vae_decoder.pte"),
-            quantize=args.quantize if not vae_quantized_w8a8 else False,
-            use_dynamic_quant_partitioner=vae_quantized_w8a8,
+            quantize=args.quantize and not vae_use_w8a8,
+            use_dynamic_quant_partitioner=vae_use_w8a8,
+            dynamic_w8a8=vae_use_w8a8,
         )
         del wrapper, inputs
         _free_memory()
@@ -958,8 +1127,9 @@ def main():
 
         export_component_to_xnnpack(
             wrapper, inputs, str(out / "vae_encoder.pte"),
-            quantize=args.quantize if not vae_quantized_w8a8 else False,
-            use_dynamic_quant_partitioner=vae_quantized_w8a8,
+            quantize=args.quantize and not vae_use_w8a8,
+            use_dynamic_quant_partitioner=vae_use_w8a8,
+            dynamic_w8a8=vae_use_w8a8,
         )
         del wrapper, inputs
         _free_memory()

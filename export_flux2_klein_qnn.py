@@ -50,8 +50,11 @@ import argparse
 import gc
 import json
 import logging
+import operator
 import os
 from pathlib import Path
+import re
+import sys
 
 import torch
 import torch.nn as nn
@@ -63,11 +66,59 @@ logging.basicConfig(
 logger = logging.getLogger("flux2_qnn_export")
 
 
+def configure_local_tooling(allow_reexec: bool = False):
+    """Populate local tool defaults when the caller hasn't exported them."""
+    repo_root = Path(__file__).resolve().parent
+    flatc_path = repo_root / ".venv" / "bin" / "flatc"
+    if not os.environ.get("FLATC_EXECUTABLE") and flatc_path.exists():
+        os.environ["FLATC_EXECUTABLE"] = str(flatc_path)
+        logger.info("Using local flatc: %s", flatc_path)
+
+    qnn_sdk_root_env = os.environ.get("QNN_SDK_ROOT")
+    qnn_sdk_root = Path(qnn_sdk_root_env) if qnn_sdk_root_env else None
+    if qnn_sdk_root is None or not qnn_sdk_root.exists():
+        local_qnn_root = repo_root / "qairt" / "2.45.0.260326"
+        if local_qnn_root.exists():
+            os.environ["QNN_SDK_ROOT"] = str(local_qnn_root)
+            qnn_sdk_root = local_qnn_root
+            logger.info("Using local QNN_SDK_ROOT: %s", local_qnn_root)
+
+    required_ld_paths = []
+    if qnn_sdk_root is not None:
+        qnn_host_lib_dir = qnn_sdk_root / "lib" / "x86_64-linux-clang"
+        if qnn_host_lib_dir.exists():
+            required_ld_paths.append(str(qnn_host_lib_dir))
+
+    for candidate in (
+        repo_root / ".local-libs" / "usr" / "lib" / "x86_64-linux-gnu",
+        repo_root / ".local-libs-jammy" / "extracted" / "usr" / "lib" / "x86_64-linux-gnu",
+        repo_root / ".local-libs-14" / "usr" / "lib" / "x86_64-linux-gnu",
+        Path.home() / "android-ndk-r26d" / "toolchains" / "llvm" / "prebuilt" / "linux-x86_64" / "lib",
+    ):
+        if (
+            (candidate / "libc++.so.1").exists()
+            and (candidate / "libunwind.so.1").exists()
+            and (candidate / "libc++abi.so.1").exists()
+        ):
+            required_ld_paths.append(str(candidate))
+            break
+
+    current_ld_paths = [
+        p for p in os.environ.get("LD_LIBRARY_PATH", "").split(":") if p
+    ]
+    missing_ld_paths = [p for p in required_ld_paths if p not in current_ld_paths]
+    if allow_reexec and missing_ld_paths and os.environ.get("_FLUX2_QNN_REEXEC") != "1":
+        os.environ["LD_LIBRARY_PATH"] = ":".join(missing_ld_paths + current_ld_paths)
+        os.environ["_FLUX2_QNN_REEXEC"] = "1"
+        os.execvpe(sys.executable, [sys.executable, *sys.argv], os.environ)
+
+
 # ============================================================================
 # SOC model mapping
 # ============================================================================
 
 SOC_MODEL_MAP = {
+    "SM8850": None,   # filled in at runtime from QcomChipset
     "SM8650": None,   # filled in at runtime from QcomChipset
     "SM8550": None,
     "SM8475": None,
@@ -88,6 +139,8 @@ def get_qcom_chipset(soc_model: str):
             f"Original error: {e}"
         )
     mapping = {
+        "SM8850": QcomChipset.SM8850,
+        "SM8750": QcomChipset.SM8750,
         "SM8650": QcomChipset.SM8650,
         "SM8550": QcomChipset.SM8550,
         "SM8475": QcomChipset.SM8475,
@@ -159,11 +212,64 @@ class Qwen3TextEncoderWrapper(nn.Module):
         )
 
 
+def _patch_apply_rotary_emb_for_qnn():
+    """Replace torch.stack in diffusers' apply_rotary_emb with cat(unsqueeze).
+
+    QNN's AOT op validator rejects the stack→flatten pattern with an
+    "Incorrect out[0] dimension ... Expected 2 but got <head_dim/2>" error.
+    cat+unsqueeze produces the same tensor via ops the validator accepts.
+    Safe to call multiple times; idempotent.
+    """
+    from diffusers.models import embeddings
+
+    if getattr(embeddings.apply_rotary_emb, "_qnn_patched", False):
+        return
+
+    _original = embeddings.apply_rotary_emb
+
+    def _patched(x, freqs_cis, use_real=True, use_real_unbind_dim=-1, sequence_dim=2):
+        if use_real and use_real_unbind_dim == -1:
+            cos, sin = freqs_cis
+            if sequence_dim == 2:
+                cos = cos[None, None, :, :]
+                sin = sin[None, None, :, :]
+            elif sequence_dim == 1:
+                cos = cos[None, :, None, :]
+                sin = sin[None, :, None, :]
+            cos, sin = cos.to(x.device), sin.to(x.device)
+            x_real, x_imag = x.reshape(*x.shape[:-1], -1, 2).unbind(-1)
+            x_rotated = torch.cat(
+                [(-x_imag).unsqueeze(-1), x_real.unsqueeze(-1)], dim=-1
+            ).flatten(3)
+            return (x.float() * cos + x_rotated.float() * sin).to(x.dtype)
+        return _original(x, freqs_cis, use_real=use_real,
+                         use_real_unbind_dim=use_real_unbind_dim,
+                         sequence_dim=sequence_dim)
+
+    _patched._qnn_patched = True
+    embeddings.apply_rotary_emb = _patched
+    # Also patch the symbol where it was re-imported
+    for mod_name in (
+        "diffusers.models.attention",
+        "diffusers.models.transformers.transformer_flux2",
+        "diffusers.models.transformers.transformer_flux",
+    ):
+        import importlib
+        try:
+            m = importlib.import_module(mod_name)
+            if hasattr(m, "apply_rotary_emb"):
+                m.apply_rotary_emb = _patched
+        except ImportError:
+            pass
+    logger.info("Patched apply_rotary_emb: torch.stack → cat+unsqueeze for QNN AOT")
+
+
 class Flux2TransformerWrapper(nn.Module):
     """Thin wrapper: positional args only, returns plain tensor, guidance=None."""
 
     def __init__(self, transformer):
         super().__init__()
+        _patch_apply_rotary_emb_for_qnn()
         self.transformer = transformer
 
     def forward(self, hidden_states, encoder_hidden_states, timestep, img_ids, txt_ids):
@@ -303,7 +409,9 @@ def generate_calibration_inputs(sample_inputs: tuple, num_passes: int):
     Yield `num_passes` perturbed versions of `sample_inputs` for calibration.
 
     For the transformer: timestep varies from 0.0→1.0 to cover full denoising range.
-    For other tensors: small random perturbations.
+    Position-ID tensors (structured integer grids cast to float) are kept fixed
+    — randomizing them would feed garbage rotations into RoPE and produce
+    NaN/Inf activations that break the observer scales.
     """
     for i in range(num_passes):
         alpha = (i + 1) / (num_passes + 1)
@@ -314,6 +422,10 @@ def generate_calibration_inputs(sample_inputs: tuple, num_passes: int):
             elif inp.ndim == 1 and inp.shape[0] == 1:
                 # timestep: sweep from near-0 to near-1
                 cal.append(torch.full_like(inp, alpha))
+            elif inp.dtype in (torch.float32, torch.float64) and inp.ndim == 3 \
+                    and inp.shape[-1] == 4 and (inp == inp.round()).all():
+                # img_ids / txt_ids: position-id grid — keep fixed
+                cal.append(inp.clone())
             else:
                 # random activations with the same scale as the sample
                 scale = inp.abs().mean().item() or 1.0
@@ -324,6 +436,116 @@ def generate_calibration_inputs(sample_inputs: tuple, num_passes: int):
 # ============================================================================
 # Core QNN export routine
 # ============================================================================
+
+def _decompose_layer_norm(model, sample_inputs=None):
+    """Rewrite native_layer_norm / layer_norm into primitive ops.
+
+    Flux2 uses nn.LayerNorm on rank-3 (B, S, C) tensors which QNN HTP rejects
+    (HTP LayerNorm op requires rank-4). The default decomposition in QNN's
+    partitioner falls back to CPU at every LayerNorm, producing ~32 partition
+    boundaries in the transformer that compound quant error over 4 denoising
+    steps into pure noise output.
+
+    Rewrite native_layer_norm(x, shape, w, b, eps) as:
+        mean  = x.mean(dims, keepdim=True)
+        var   = x.var(dims, correction=0, keepdim=True)
+        diff  = x - mean
+        rstd  = rsqrt(var + eps)
+        out   = diff * rstd [* w] [+ b]
+
+    All resulting ops (mean, var, sub, mul, add, rsqrt) run natively on HTP.
+    Uses aten.mean.dim + aten.var.correction rather than sub→mul→mean→rsqrt
+    so RecomposeRmsNorm can't match the pattern and recompose incorrectly.
+
+    sample_inputs is used to repopulate meta["val"] on inserted nodes
+    (required by LiftConstantScalarOperands and other downstream passes).
+    """
+    if not hasattr(model, "graph"):
+        return model
+    gm = model
+
+    changed = False
+    for node in list(gm.graph.nodes):
+        if node.op != "call_function":
+            continue
+        if node.target not in (
+            torch.ops.aten.native_layer_norm.default,
+            torch.ops.aten.layer_norm.default,
+        ):
+            continue
+
+        changed = True
+        input_node = node.args[0]
+        normalized_shape = node.args[1]
+        weight_node = node.args[2] if len(node.args) > 2 else None
+        bias_node = node.args[3] if len(node.args) > 3 else None
+        eps = node.args[4] if len(node.args) > 4 else 1e-5
+
+        num_norm_dims = len(normalized_shape)
+        dims = list(range(-num_norm_dims, 0))
+
+        with gm.graph.inserting_before(node):
+            mean_node = gm.graph.call_function(
+                torch.ops.aten.mean.dim, args=(input_node, dims, True)
+            )
+            var_node = gm.graph.call_function(
+                torch.ops.aten.var.correction,
+                args=(input_node, dims),
+                kwargs={"correction": 0, "keepdim": True},
+            )
+            diff_node = gm.graph.call_function(
+                torch.ops.aten.sub.Tensor, args=(input_node, mean_node)
+            )
+            eps_node = gm.graph.call_function(
+                torch.ops.aten.add.Scalar, args=(var_node, eps)
+            )
+            rsqrt_node = gm.graph.call_function(
+                torch.ops.aten.rsqrt.default, args=(eps_node,)
+            )
+            out_node = gm.graph.call_function(
+                torch.ops.aten.mul.Tensor, args=(diff_node, rsqrt_node)
+            )
+            if weight_node is not None:
+                out_node = gm.graph.call_function(
+                    torch.ops.aten.mul.Tensor, args=(out_node, weight_node)
+                )
+            if bias_node is not None:
+                out_node = gm.graph.call_function(
+                    torch.ops.aten.add.Tensor, args=(out_node, bias_node)
+                )
+
+        if node.target == torch.ops.aten.native_layer_norm.default:
+            for user in list(node.users):
+                if user.op == "call_function" and user.target == operator.getitem:
+                    idx = user.args[1]
+                    if idx == 0:
+                        user.replace_all_uses_with(out_node)
+                    elif idx == 1:
+                        user.replace_all_uses_with(mean_node)
+                    elif idx == 2:
+                        user.replace_all_uses_with(rsqrt_node)
+                    gm.graph.erase_node(user)
+        else:
+            node.replace_all_uses_with(out_node)
+
+        gm.graph.erase_node(node)
+
+    if changed:
+        gm.graph.lint()
+        gm.recompile()
+        # Re-propagate fake tensors so every new node has meta["val"];
+        # LiftConstantScalarOperands and other downstream passes read dtype/shape from it.
+        if sample_inputs is not None:
+            from torch.fx.passes.fake_tensor_prop import FakeTensorProp
+            from torch._subclasses.fake_tensor import FakeTensorMode
+            # allow_non_fake_inputs: model parameters are real tensors (get_attr),
+            # not FakeTensors. FakeTensorProp would otherwise reject them.
+            mode = FakeTensorMode(allow_non_fake_inputs=True)
+            FakeTensorProp(gm, mode=mode).propagate(*sample_inputs)
+        logger.info("Decomposed native_layer_norm into primitive HTP-native ops")
+
+    return gm
+
 
 def _remove_int_quantize_nodes(model):
     """
@@ -428,6 +650,122 @@ def _uninstall_safe_export_pass():
     # so just leave the safe version in place.  It's strictly better.
 
 
+def _compute_shard_starts(total_layers: int, num_shards: int) -> list[int]:
+    if num_shards <= 1 or total_layers <= 1:
+        return []
+    num_shards = min(num_shards, total_layers)
+    return sorted(
+        {
+            (i * total_layers) // num_shards
+            for i in range(1, num_shards)
+            if 0 < (i * total_layers) // num_shards < total_layers
+        }
+    )
+
+
+def _get_flux_transformer_layer_index(module_name: str, num_double_layers: int) -> int | None:
+    match = re.search(r"transformer\.transformer_blocks\.(\d+)", module_name)
+    if match is not None:
+        return int(match.group(1))
+
+    match = re.search(r"transformer\.single_transformer_blocks\.(\d+)", module_name)
+    if match is not None:
+        return num_double_layers + int(match.group(1))
+
+    return None
+
+
+def _insert_flux_transformer_fallbacks(
+    graph_module,
+    num_shards: int,
+    num_double_layers: int,
+    total_layers: int,
+    quant_io_dtype=None,
+) -> list[int]:
+    from executorch.backends.qualcomm.utils.constants import (
+        QCOM_DTYPE,
+        QCOM_QUANT_ATTRS,
+        QCOM_QUANTIZED_IO,
+    )
+    from executorch.exir.dialects._ops import ops as exir_ops
+    from executorch.extension.llm.custom_ops import model_sharding  # noqa: F401
+
+    shard_starts = _compute_shard_starts(total_layers, num_shards)
+    if not shard_starts:
+        return []
+
+    prev_node = None
+    prev_layer = None
+    inserted = 0
+    shard_start_set = set(shard_starts)
+    for node in graph_module.graph.nodes:
+        if node.op != "call_function" or "nn_module_stack" not in node.meta:
+            continue
+
+        module_values_list = list(node.meta["nn_module_stack"].values())
+        full_qualified_name = module_values_list[-1][0]
+        cur_layer = _get_flux_transformer_layer_index(full_qualified_name, num_double_layers)
+        if cur_layer is None:
+            continue
+
+        if cur_layer in shard_start_set and prev_layer == cur_layer - 1 and prev_node is not None:
+            with graph_module.graph.inserting_after(prev_node):
+                users = list(prev_node.users.keys())
+                inserted_node = graph_module.graph.create_node(
+                    "call_function",
+                    exir_ops.edge.llama.fallback.default,
+                    (prev_node,),
+                )
+                if "val" in prev_node.meta:
+                    inserted_node.meta["val"] = prev_node.meta["val"]
+                if prev_node.meta.get(QCOM_QUANT_ATTRS, None):
+                    inserted_node.meta[QCOM_QUANT_ATTRS] = prev_node.meta[QCOM_QUANT_ATTRS]
+                for user in users:
+                    user.replace_input_with(prev_node, inserted_node)
+            inserted += 1
+
+        prev_layer = cur_layer
+        prev_node = node
+
+    def _infer_quant_io_dtype(node):
+        if quant_io_dtype is not None:
+            return quant_io_dtype
+        quant_attrs = node.meta.get(QCOM_QUANT_ATTRS)
+        if quant_attrs and quant_attrs.get(QCOM_DTYPE) is not None:
+            return quant_attrs[QCOM_DTYPE]
+        val = node.meta.get("val")
+        if hasattr(val, "dtype") and val.dtype in (torch.uint8, torch.int8, torch.uint16, torch.int16):
+            return val.dtype
+        return None
+
+    fallback_op = exir_ops.edge.llama.fallback.default
+    tagged = 0
+    for node in graph_module.graph.nodes:
+        if fallback_op in [u.target for u in list(node.users.keys())] + [node.target]:
+            dtype = _infer_quant_io_dtype(node)
+            if dtype is not None:
+                node.meta[QCOM_QUANTIZED_IO] = dtype
+                tagged += 1
+
+    if inserted:
+        graph_module.graph.lint()
+        graph_module.recompile()
+        logger.info(
+            "Inserted %d fallback boundaries for transformer sharding at layer starts %s "
+            "and tagged %d shard-boundary tensors as quantized I/O",
+            inserted,
+            shard_starts,
+            tagged,
+        )
+    else:
+        logger.warning(
+            "Requested transformer sharding into %d shards, but no fallback boundaries were inserted",
+            num_shards,
+        )
+
+    return shard_starts
+
+
 def export_component_to_qnn(
     model: nn.Module,
     sample_inputs: tuple,
@@ -435,6 +773,13 @@ def export_component_to_qnn(
     soc_chipset,
     num_calibration_passes: int = 20,
     skip_node_op_set: set = None,
+    online_prepare: bool = True,
+    quant_dtype: str | None = "8a8w",
+    use_fp16: bool = False,
+    calibration_data: list = None,
+    num_shards: int = 1,
+    num_double_layers: int = 0,
+    total_layers: int = 0,
 ):
     """
     Export a model component to QNN-accelerated ExecuTorch .pte.
@@ -455,6 +800,7 @@ def export_component_to_qnn(
             capture_program,
             generate_htp_compiler_spec,
             generate_qnn_executorch_compiler_spec,
+            update_spill_fill_size,
         )
         from executorch.exir import to_edge, EdgeCompileConfig
         from executorch.exir.program._program import EdgeProgramManager
@@ -477,44 +823,82 @@ def export_component_to_qnn(
     with torch.no_grad():
         captured_model = torch.export.export(model, sample_inputs, strict=True).module()
 
-    # ── 2. Set up QNN quantizer ─────────────────────────────────────────────
-    logger.info("Setting up QnnQuantizer for INT8 static quantization ...")
-    quantizer = QnnQuantizer()
-    quantizer.set_per_channel_conv_quant(True)
-    quantizer.set_quant_config(QuantDtype.use_8a8w, act_observer=MovingAverageMinMaxObserver)
+    # ── 1b. Decompose LayerNorm so HTP doesn't fall back to CPU ────────────
+    _decompose_layer_norm(captured_model, sample_inputs=sample_inputs)
 
-    if skip_node_op_set:
-        quantizer.add_discard_ops(list(skip_node_op_set))
+    if quant_dtype is not None:
+        DTYPE_MAP = {
+            "8a8w": QuantDtype.use_8a8w,
+            "16a8w": QuantDtype.use_16a8w,
+            "16a4w": QuantDtype.use_16a4w,
+            "16a16w": QuantDtype.use_16a16w,
+            "16a4w_block": QuantDtype.use_16a4w_block,
+        }
+        if quant_dtype not in DTYPE_MAP:
+            raise ValueError(
+                f"Unknown quant_dtype {quant_dtype!r}, choose from {list(DTYPE_MAP)}"
+            )
 
-    # ── 3. Prepare + calibrate ──────────────────────────────────────────────
-    logger.info("prepare_pt2e: inserting fake-quant observers ...")
-    prepared_model = prepare_pt2e(captured_model, quantizer)
+        # ── 2. Set up QNN quantizer ─────────────────────────────────────────
+        logger.info("Setting up QnnQuantizer (%s) ...", quant_dtype)
+        quantizer = QnnQuantizer()
+        quantizer.set_per_channel_conv_quant(True)
+        quantizer.set_quant_config(
+            DTYPE_MAP[quant_dtype],
+            act_observer=MovingAverageMinMaxObserver,
+        )
 
-    logger.info("Running %d calibration passes ...", num_calibration_passes)
-    with torch.no_grad():
-        for i, cal_inputs in enumerate(
-            generate_calibration_inputs(sample_inputs, num_calibration_passes)
-        ):
-            prepared_model(*cal_inputs)
-            if (i + 1) % 5 == 0 or (i + 1) == num_calibration_passes:
-                logger.info("  calibration %d/%d", i + 1, num_calibration_passes)
+        if skip_node_op_set:
+            quantizer.add_discard_ops(list(skip_node_op_set))
 
-    # ── 4. Convert to static INT8 ───────────────────────────────────────────
-    logger.info("convert_pt2e: folding quantization parameters ...")
-    quantized_model = convert_pt2e(prepared_model)
+        # ── 3. Prepare + calibrate ──────────────────────────────────────────
+        logger.info("prepare_pt2e: inserting fake-quant observers ...")
+        prepared_model = prepare_pt2e(captured_model, quantizer)
 
-    # ── 4b. Remove spurious quantize nodes on non-float tensors ────────────
-    _remove_int_quantize_nodes(quantized_model)
+        if calibration_data is not None:
+            num_cal = len(calibration_data)
+            logger.info("Running %d calibration passes (real data) ...", num_cal)
+            with torch.no_grad():
+                for i, cal_inputs in enumerate(calibration_data):
+                    if not isinstance(cal_inputs, tuple):
+                        cal_inputs = (cal_inputs,)
+                    prepared_model(*cal_inputs)
+                    if (i + 1) % 5 == 0 or (i + 1) == num_cal:
+                        logger.info("  calibration %d/%d (real)", i + 1, num_cal)
+        else:
+            logger.info(
+                "Running %d calibration passes (synthetic) ...",
+                num_calibration_passes,
+            )
+            with torch.no_grad():
+                for i, cal_inputs in enumerate(
+                    generate_calibration_inputs(sample_inputs, num_calibration_passes)
+                ):
+                    prepared_model(*cal_inputs)
+                    if (i + 1) % 5 == 0 or (i + 1) == num_calibration_passes:
+                        logger.info("  calibration %d/%d", i + 1, num_calibration_passes)
+
+        # ── 4. Convert to static quantized graph ───────────────────────────
+        logger.info("convert_pt2e: folding quantization parameters ...")
+        exported_model = convert_pt2e(prepared_model)
+
+        # ── 4b. Remove spurious quantize nodes on non-float tensors ───────
+        _remove_int_quantize_nodes(exported_model)
+    else:
+        if not use_fp16:
+            raise ValueError("quant_dtype=None requires use_fp16=True")
+        logger.info("Skipping PTQ; exporting floating-point graph for QNN HTP fp16")
+        exported_model = captured_model
 
     # ── 5. Re-export with QNN decompositions ─────────────────────────────
-    logger.info("Re-exporting quantized model with QNN decompositions ...")
+    logger.info("Re-exporting model with QNN decompositions ...")
     from executorch.backends.qualcomm.utils.utils import (
         get_decomp_table,
         qnn_edge_config,
     )
     from executorch.exir import ExirExportedProgram
 
-    torch.ao.quantization.allow_exported_model_train_eval(quantized_model)
+    torch.ao.quantization.allow_exported_model_train_eval(exported_model)
 
     # Install safe ExportPass before any to_edge calls — this prevents
     # dtype mismatch crashes in the fake-tensor interpreter while still
@@ -523,7 +907,7 @@ def export_component_to_qnn(
 
     use_fallback = False
     try:
-        edge_prog = capture_program(quantized_model, sample_inputs)
+        edge_prog = capture_program(exported_model, sample_inputs)
     except Exception as e:
         logger.warning(
             "capture_program failed (%s), using fallback export path", e
@@ -531,10 +915,10 @@ def export_component_to_qnn(
         use_fallback = True
 
         logger.info("Direct re-export with strict=False ...")
-        quantized_ep = torch.export.export(quantized_model, sample_inputs, strict=False)
+        exported_ep = torch.export.export(exported_model, sample_inputs, strict=False)
 
         # Apply QNN-specific decompositions
-        decomposed_ep = quantized_ep.run_decompositions(get_decomp_table(None))
+        decomposed_ep = exported_ep.run_decompositions(get_decomp_table(None))
         core_ep = ExirExportedProgram(decomposed_ep, False)
 
         try:
@@ -545,20 +929,49 @@ def export_component_to_qnn(
 
         edge_prog = core_ep.to_edge(qnn_edge_config())
 
+    if num_shards > 1:
+        shard_io_dtype = None
+        if not use_fp16:
+            if quant_dtype == "8a8w":
+                shard_io_dtype = torch.uint8
+            elif quant_dtype in {"16a8w", "16a4w", "16a16w", "16a4w_block"}:
+                shard_io_dtype = torch.uint16
+        shard_starts = _insert_flux_transformer_fallbacks(
+            edge_prog.exported_program.graph_module,
+            num_shards=num_shards,
+            num_double_layers=num_double_layers,
+            total_layers=total_layers,
+            quant_io_dtype=shard_io_dtype,
+        )
+        skip_node_op_set = set(skip_node_op_set or set())
+        skip_node_op_set.add("llama.fallback.default")
+        logger.info(
+            "Enabled QNN multi-context sharding across %d shards at layer starts %s",
+            num_shards,
+            shard_starts,
+        )
+
     # ── 6. Build QNN compiler spec + partition ─────────────────────────────
     logger.info("Building QNN HTP compiler spec for SOC ...")
-    backend_options = generate_htp_compiler_spec(use_fp16=False)
+    backend_options = generate_htp_compiler_spec(
+        use_fp16=use_fp16,
+        use_dlbc=num_shards > 1,
+        use_multi_contexts=num_shards > 1,
+    )
     qnn_partitioner = QnnPartitioner(
         generate_qnn_executorch_compiler_spec(
             soc_model=soc_chipset,
             backend_options=backend_options,
-            online_prepare=True,
+            online_prepare=online_prepare,
         ),
         skip_node_op_set=skip_node_op_set,
     )
 
     logger.info("to_backend: partitioning graph for QNN HTP ...")
     delegated_ep = to_backend(edge_prog.exported_program, qnn_partitioner)
+    if num_shards > 1:
+        max_sf_size = update_spill_fill_size(delegated_ep)
+        logger.info("Configured QNN multi-context spill/fill buffer size: %d", max_sf_size)
 
     # ── 7. Serialize to .pte ──────────────────────────────────────────────
     logger.info("Serialising to .pte ...")
@@ -614,6 +1027,8 @@ def save_vae_bn_stats(pipe, output_dir: str):
 # ============================================================================
 
 def main():
+    configure_local_tooling(allow_reexec=True)
+
     p = argparse.ArgumentParser(
         description="Export FLUX.2-klein-4B to ExecuTorch QNN (.pte) for Qualcomm HTP/DSP",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -625,14 +1040,32 @@ def main():
     p.add_argument("--width", type=int, default=512)
     p.add_argument("--max_text_len", type=int, default=512)
     p.add_argument("--soc_model", default="SM8650",
-                   choices=["SM8650", "SM8550", "SM8475", "SM8450"],
-                   help="Target Snapdragon SOC (default: SM8650 = Snapdragon 8 Gen 3)")
+                   choices=["SM8850", "SM8750", "SM8650", "SM8550", "SM8475", "SM8450"],
+                   help="Target Snapdragon SOC (default: SM8650 = Snapdragon 8 Gen 3; use SM8850 for V81 / Snapdragon 8 Elite Gen 5)")
     p.add_argument("--num_calibration_passes", type=int, default=20,
                    help="Number of calibration forward passes for INT8 activation ranges")
     p.add_argument("--component",
                    choices=["all", "transformer", "vae", "vae_encoder", "text_encoder"],
                    default="all")
     p.add_argument("--num_img2img_images", type=int, default=0)
+    p.add_argument("--aot", action="store_true",
+                   help="Force online_prepare=False for all components (AOT HTP compile on host). "
+                        "Transformer is always AOT; this flag enables AOT for the other components too.")
+    p.add_argument("--quant_dtype", default="8a8w",
+                   choices=["8a8w", "16a8w", "16a4w", "16a16w", "16a4w_block"],
+                   help="Quantization scheme. 16a8w is a useful fallback when 8a8w "
+                        "accuracy is insufficient (~2x larger .pte, ~20%% slower).")
+    p.add_argument("--fp16_components", nargs="*", default=[],
+                   choices=["text_encoder", "transformer", "vae", "vae_encoder"],
+                   help="Components to export in floating-point QNN HTP fp16 mode. "
+                        "These components skip PTQ entirely.")
+    p.add_argument("--transformer_shards", type=int, default=1,
+                   help="Split the transformer into this many QNN multi-context shards "
+                        "for AOT exports. Use this when a single w8a8 transformer context is too large.")
+    p.add_argument("--calibration_dir", default=None,
+                   help="Directory with calibration_{text_encoder,transformer,vae}.pt "
+                        "from collect_calibration_data.py. Uses real activations "
+                        "instead of synthetic perturbations.")
     args = p.parse_args()
 
     out = Path(args.output_dir)
@@ -665,6 +1098,20 @@ def main():
     hidden_states_layers = [9, 18, 27]
     logger.info("Text encoder: extracting hidden states from layers %s", hidden_states_layers)
 
+    # Load real calibration data if --calibration_dir was passed
+    cal_data = {"text_encoder": None, "transformer": None, "vae": None}
+    if args.calibration_dir:
+        for comp in cal_data:
+            path = os.path.join(args.calibration_dir, f"calibration_{comp}.pt")
+            if os.path.exists(path):
+                cal_data[comp] = torch.load(path, weights_only=False)
+                logger.info("Loaded %d calibration samples for %s from %s",
+                            len(cal_data[comp]), comp, path)
+            else:
+                logger.warning("No calibration file at %s (will use synthetic data)", path)
+
+    fp16_components = set(args.fp16_components)
+
     # Save metadata
     vae_sf = _get_vae_scale_factor(pipe)
     patch_h, patch_w = _compute_latent_dims(args.height, args.width, vae_sf)
@@ -677,8 +1124,9 @@ def main():
         "height": args.height,
         "width": args.width,
         "max_text_len": args.max_text_len,
-        "quantization": "int8_static",
+        "quantization": "mixed_int8_fp16" if fp16_components else "int8_static",
         "num_calibration_passes": args.num_calibration_passes,
+        "fp16_components": sorted(fp16_components),
         "is_distilled": getattr(pipe.config, "is_distilled", True),
         "num_inference_steps": 4,
         "vae_scale_factor": vae_sf,
@@ -713,6 +1161,10 @@ def main():
             str(out / "text_encoder.pte"),
             soc_chipset=soc_chipset,
             num_calibration_passes=args.num_calibration_passes,
+            online_prepare=not args.aot,
+            quant_dtype=None if "text_encoder" in fp16_components else args.quant_dtype,
+            use_fp16="text_encoder" in fp16_components,
+            calibration_data=cal_data["text_encoder"],
         )
         del te_model
         gc.collect()
@@ -721,6 +1173,21 @@ def main():
     if args.component in ("all", "transformer"):
         logger.info("=" * 60)
         logger.info("Exporting TRANSFORMER ...")
+        if "transformer" in fp16_components:
+            logger.info(
+                "Transformer export uses floating-point QNN HTP fp16 mode "
+                "(no PTQ) with AOT compilation."
+            )
+        else:
+            logger.info(
+                "Transformer export uses AOT QNN compilation by default "
+                "(online_prepare=False) to avoid first-run on-device graph prep."
+            )
+            if args.transformer_shards > 1:
+                logger.info(
+                    "Transformer export will use %d QNN multi-context shards for w8a8 lowering",
+                    args.transformer_shards,
+                )
         tf_model = Flux2TransformerWrapper(pipe.transformer).eval().cpu()
         sample_inputs = build_transformer_inputs(
             pipe, args.height, args.width, args.max_text_len,
@@ -732,6 +1199,13 @@ def main():
             str(out / "transformer.pte"),
             soc_chipset=soc_chipset,
             num_calibration_passes=args.num_calibration_passes,
+            online_prepare=False,
+            quant_dtype=None if "transformer" in fp16_components else args.quant_dtype,
+            use_fp16="transformer" in fp16_components,
+            calibration_data=cal_data["transformer"],
+            num_shards=args.transformer_shards,
+            num_double_layers=len(pipe.transformer.transformer_blocks),
+            total_layers=len(pipe.transformer.transformer_blocks) + len(pipe.transformer.single_transformer_blocks),
         )
         del tf_model
         gc.collect()
@@ -748,6 +1222,10 @@ def main():
             str(out / "vae_decoder.pte"),
             soc_chipset=soc_chipset,
             num_calibration_passes=args.num_calibration_passes,
+            online_prepare=not args.aot,
+            quant_dtype=None if "vae" in fp16_components else args.quant_dtype,
+            use_fp16="vae" in fp16_components,
+            calibration_data=cal_data["vae"],
         )
         del vae_model
         gc.collect()
@@ -766,6 +1244,10 @@ def main():
             str(out / "vae_encoder.pte"),
             soc_chipset=soc_chipset,
             num_calibration_passes=args.num_calibration_passes,
+            online_prepare=not args.aot,
+            quant_dtype=None if "vae_encoder" in fp16_components else args.quant_dtype,
+            use_fp16="vae_encoder" in fp16_components,
+            calibration_data=cal_data["vae"],
         )
         del vae_enc
         gc.collect()
