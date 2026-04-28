@@ -137,8 +137,68 @@ copy_file "${QNN_LIB_DIR}/libQnnHtpNetRunExtensions.so" \
 copy_file "${QNN_LIB_DIR}/libQnnHtp${QNN_ARCH_UPPER}Stub.so" \
   "${BUNDLE_DIR}/libQnnHtp${QNN_ARCH_UPPER}Stub.so"
 
-for lib in "${HEX_LIB_DIR}"/*.so; do
-  copy_file "${lib}" "${BUNDLE_DIR}/$(basename "${lib}")"
+# Only copy the Hexagon skel binaries (DSP-side). The hexagon-v*/unsigned/
+# directory also contains 32-bit DSP versions of libQnnSystem.so, libQnnSaver.so
+# etc. that would overwrite the 64-bit aarch64-android copies above and make
+# the runner fail with "is 32-bit instead of 64-bit".
+for lib in "${HEX_LIB_DIR}"/libQnnHtp${QNN_ARCH_UPPER}Skel.so \
+           "${HEX_LIB_DIR}"/libSnpeHtpV${QNN_ARCH_UPPER#V}Skel.so \
+           "${HEX_LIB_DIR}"/libQnnHtpV${QNN_ARCH_UPPER#V}.so ; do
+  if [ -f "${lib}" ]; then
+    copy_file "${lib}" "${BUNDLE_DIR}/$(basename "${lib}")"
+  fi
 done
+
+cat > "${BUNDLE_DIR}/push.sh" <<'PUSH_EOF'
+#!/bin/bash
+# Self-contained push script. Run from this bundle directory on your laptop
+# with the phone connected via adb.
+#
+# Usage:
+#   ./push.sh              # uses adb from PATH
+#   ADB=/path/to/adb ./push.sh
+set -euo pipefail
+
+DST=/data/local/tmp/flux2
+BUNDLE="$(cd "$(dirname "$0")" && pwd)"
+ADB="${ADB:-}"
+
+if [ -z "${ADB}" ]; then
+  if command -v adb >/dev/null 2>&1; then
+    ADB="$(command -v adb)"
+  else
+    echo "ERROR: adb not found in PATH; set ADB=/path/to/adb or install platform-tools" >&2
+    exit 1
+  fi
+fi
+
+"${ADB}" shell mkdir -p "$DST"
+
+for f in \
+  text_encoder.pte transformer.pte vae_decoder.pte \
+  export_config.json vae_bn_stats.pt \
+  prompt.bin bn_mean.bin bn_var.bin \
+  flux2_runner
+do
+  "${ADB}" push "$BUNDLE/$f" "$DST/"
+done
+
+shopt -s nullglob
+for f in "$BUNDLE"/*.so; do
+  "${ADB}" push "$f" "$DST/"
+done
+shopt -u nullglob
+
+"${ADB}" push "$BUNDLE/tokenizer" "$DST/"
+"${ADB}" shell chmod +x "$DST/flux2_runner"
+
+echo
+echo "Done. Run on device:"
+echo "  ${ADB} shell \"cd $DST && LD_LIBRARY_PATH=$DST ADSP_LIBRARY_PATH=$DST ./flux2_runner --model_dir . --tokens prompt.bin --output output.ppm --steps 4 --seed 42\""
+echo
+echo "Then pull the image:"
+echo "  ${ADB} pull $DST/output.ppm ./output.ppm"
+PUSH_EOF
+chmod +x "${BUNDLE_DIR}/push.sh"
 
 echo "Bundle staged at ${BUNDLE_DIR}"

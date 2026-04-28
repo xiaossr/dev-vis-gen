@@ -15,6 +15,13 @@
 #include <executorch/extension/module/module.h>
 #include <executorch/extension/tensor/tensor.h>
 #include <executorch/runtime/platform/runtime.h>
+// Optional QNN runtime option headers — included only when QNN build is available.
+#if __has_include(<executorch/backends/qualcomm/runtime/QnnExecuTorch.h>)
+#include <executorch/backends/qualcomm/runtime/QnnExecuTorch.h>
+#include <executorch/runtime/backend/interface.h>
+#include <executorch/runtime/backend/options.h>
+#define FLUX2_HAS_QNN_OPTIONS 1
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -273,6 +280,23 @@ static void save_ppm(
 
 int main(int argc, char** argv) {
   executorch::runtime::runtime_init();
+
+  // Set QNN HTP to high-performance mode — matches April's flux2_qnn_main.
+  // Without this QNN runs in whatever the default mode is; high_performance
+  // (mode 3) gives the NPU max clock for both numerics and throughput.
+#ifdef FLUX2_HAS_QNN_OPTIONS
+  {
+    executorch::runtime::BackendOptions<3> backend_options;
+    backend_options.set_option(
+        executorch::backends::qnn::QNN_RUNTIME_HTP_PERFORMANCE_MODE, 3);
+    auto err = executorch::runtime::set_option(
+        executorch::backends::qnn::QNN_BACKEND, backend_options.view());
+    if (err == executorch::runtime::Error::Ok) {
+      printf("QNN HTP performance_mode=3 (high_performance)\n");
+    }
+  }
+#endif
+
   Args args = parse_args(argc, argv);
   if (args.model_dir.empty()) {
     fprintf(stderr, "ERROR: --model_dir is required\n");

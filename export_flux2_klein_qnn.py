@@ -694,9 +694,26 @@ def _insert_flux_transformer_fallbacks(
     if not shard_starts:
         return []
 
+    def _insert_fallback_after(anchor_node):
+        with graph_module.graph.inserting_after(anchor_node):
+            users = list(anchor_node.users.keys())
+            inserted_node = graph_module.graph.create_node(
+                "call_function",
+                exir_ops.edge.llama.fallback.default,
+                (anchor_node,),
+            )
+            if "val" in anchor_node.meta:
+                inserted_node.meta["val"] = anchor_node.meta["val"]
+            if anchor_node.meta.get(QCOM_QUANT_ATTRS, None):
+                inserted_node.meta[QCOM_QUANT_ATTRS] = anchor_node.meta[QCOM_QUANT_ATTRS]
+            for user in users:
+                user.replace_input_with(anchor_node, inserted_node)
+
     prev_node = None
     prev_layer = None
     inserted = 0
+    last_block_node = None
+    last_block_layer = total_layers - 1
     shard_start_set = set(shard_starts)
     for node in graph_module.graph.nodes:
         if node.op != "call_function" or "nn_module_stack" not in node.meta:
@@ -709,23 +726,58 @@ def _insert_flux_transformer_fallbacks(
             continue
 
         if cur_layer in shard_start_set and prev_layer == cur_layer - 1 and prev_node is not None:
-            with graph_module.graph.inserting_after(prev_node):
-                users = list(prev_node.users.keys())
-                inserted_node = graph_module.graph.create_node(
-                    "call_function",
-                    exir_ops.edge.llama.fallback.default,
-                    (prev_node,),
-                )
-                if "val" in prev_node.meta:
-                    inserted_node.meta["val"] = prev_node.meta["val"]
-                if prev_node.meta.get(QCOM_QUANT_ATTRS, None):
-                    inserted_node.meta[QCOM_QUANT_ATTRS] = prev_node.meta[QCOM_QUANT_ATTRS]
-                for user in users:
-                    user.replace_input_with(prev_node, inserted_node)
+            _insert_fallback_after(prev_node)
             inserted += 1
+
+        if cur_layer == last_block_layer:
+            last_block_node = node
 
         prev_layer = cur_layer
         prev_node = node
+
+    # Isolate the post-transformer tail (norm_out + proj_out) in its own
+    # partition. Without this the last shard bundles the final transformer
+    # block with the tail, which reliably trips RouterX86 on V81 VTCM.
+    tail_inserted = False
+    if last_block_node is not None:
+        _insert_fallback_after(last_block_node)
+        inserted += 1
+        tail_inserted = True
+
+    # Isolate the shared modulation outputs. FLUX has three shared modulation
+    # modules (`single_stream_modulation`, `double_stream_modulation_img`,
+    # `double_stream_modulation_txt`) each producing a tensor broadcast to
+    # every block. Without isolation the partitioner drags the entire
+    # modulation chain into one block's partition, creating a mixed
+    # "modulation + one block attention" partition with unusual VTCM layout
+    # requirements that trip `q::ForceFormat_Crouton` on V81. Insert a
+    # fallback after the last node of each modulation module so modulation
+    # lowering becomes its own partition.
+    modulation_module_suffixes = (
+        "single_stream_modulation",
+        "double_stream_modulation_img",
+        "double_stream_modulation_txt",
+        "time_guidance_embed",
+    )
+    last_mod_nodes = {name: None for name in modulation_module_suffixes}
+    for node in graph_module.graph.nodes:
+        if node.op != "call_function" or "nn_module_stack" not in node.meta:
+            continue
+        fqn = list(node.meta["nn_module_stack"].values())[-1][0]
+        for suffix in modulation_module_suffixes:
+            # fqn looks like "transformer.single_stream_modulation.linear"
+            # so a split check works regardless of parent prefix.
+            parts = fqn.split(".")
+            if suffix in parts:
+                last_mod_nodes[suffix] = node
+                break
+
+    mod_inserted = 0
+    for name, node in last_mod_nodes.items():
+        if node is not None:
+            _insert_fallback_after(node)
+            inserted += 1
+            mod_inserted += 1
 
     def _infer_quant_io_dtype(node):
         if quant_io_dtype is not None:
@@ -752,9 +804,11 @@ def _insert_flux_transformer_fallbacks(
         graph_module.recompile()
         logger.info(
             "Inserted %d fallback boundaries for transformer sharding at layer starts %s "
-            "and tagged %d shard-boundary tensors as quantized I/O",
+            "(+ tail: %s, + %d modulation isolations) and tagged %d shard-boundary tensors as quantized I/O",
             inserted,
             shard_starts,
+            tail_inserted,
+            mod_inserted,
             tagged,
         )
     else:
@@ -780,6 +834,7 @@ def export_component_to_qnn(
     num_shards: int = 1,
     num_double_layers: int = 0,
     total_layers: int = 0,
+    discard_quant_ops: list = None,
 ):
     """
     Export a model component to QNN-accelerated ExecuTorch .pte.
@@ -850,6 +905,14 @@ def export_component_to_qnn(
 
         if skip_node_op_set:
             quantizer.add_discard_ops(list(skip_node_op_set))
+
+        if discard_quant_ops:
+            logger.info(
+                "Discarding quantization on %d op types (kept unquantized for QNN HTP): %s",
+                len(discard_quant_ops),
+                [getattr(op, "_name", str(op)) for op in discard_quant_ops],
+            )
+            quantizer.add_discard_ops(list(discard_quant_ops))
 
         # ── 3. Prepare + calibrate ──────────────────────────────────────────
         logger.info("prepare_pt2e: inserting fake-quant observers ...")
@@ -1180,14 +1243,12 @@ def main():
             )
         else:
             logger.info(
-                "Transformer export uses AOT QNN compilation by default "
-                "(online_prepare=False) to avoid first-run on-device graph prep."
+                "Transformer export uses online_prepare=True. The host-side "
+                "AOT scheduler (RouterX86) fails on Flux w8a8 when a partition "
+                "contains >=2 attention softmaxes; on-device graph prep uses a "
+                "different codepath that compiles cleanly. First-run latency "
+                "includes graph prep; subsequent runs are fast."
             )
-            if args.transformer_shards > 1:
-                logger.info(
-                    "Transformer export will use %d QNN multi-context shards for w8a8 lowering",
-                    args.transformer_shards,
-                )
         tf_model = Flux2TransformerWrapper(pipe.transformer).eval().cpu()
         sample_inputs = build_transformer_inputs(
             pipe, args.height, args.width, args.max_text_len,
@@ -1199,7 +1260,7 @@ def main():
             str(out / "transformer.pte"),
             soc_chipset=soc_chipset,
             num_calibration_passes=args.num_calibration_passes,
-            online_prepare=False,
+            online_prepare=not args.aot,
             quant_dtype=None if "transformer" in fp16_components else args.quant_dtype,
             use_fp16="transformer" in fp16_components,
             calibration_data=cal_data["transformer"],
