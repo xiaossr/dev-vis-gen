@@ -1,0 +1,760 @@
+{
+  "vtcm_overflow_threshold_numel": 2000000,
+  "top_k_target": 30,
+  "predicate_targets": [
+    {
+      "op": "aten.add.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.0"
+    },
+    {
+      "op": "aten.add.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.2"
+    },
+    {
+      "op": "aten.mul.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.4"
+    },
+    {
+      "op": "aten.layer_norm.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.1.norm2_context"
+    },
+    {
+      "op": "aten.add.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.3"
+    },
+    {
+      "op": "aten.layer_norm.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.0.norm2_context"
+    },
+    {
+      "op": "aten.layer_norm.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.4.norm1_context"
+    },
+    {
+      "op": "aten.linear.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.3.ff_context.linear_out"
+    },
+    {
+      "op": "aten.layer_norm.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.3.norm1_context"
+    },
+    {
+      "op": "aten.mul.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.1"
+    },
+    {
+      "op": "aten.mul.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.0"
+    },
+    {
+      "op": "aten.add.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.4"
+    },
+    {
+      "op": "aten.layer_norm.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.4.norm2_context"
+    },
+    {
+      "op": "aten.mul.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.2"
+    },
+    {
+      "op": "aten.layer_norm.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.2.norm2_context"
+    },
+    {
+      "op": "aten.mul.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.3"
+    },
+    {
+      "op": "aten.layer_norm.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.2.norm1_context"
+    },
+    {
+      "op": "aten.layer_norm.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.3.norm2_context"
+    },
+    {
+      "op": "aten.add.Tensor",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.transformer_blocks.1"
+    },
+    {
+      "op": "aten.linear.default",
+      "shape": [
+        1,
+        512,
+        3072
+      ],
+      "module": "transformer.context_embedder"
+    }
+  ],
+  "details": [
+    {
+      "name": "activation_post_process_250",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.0",
+      "range_max": 1030.4884033203125,
+      "range_mean": 760.5398712158203,
+      "std_max": 2.641228437423706,
+      "outlier_ratio": 1.354943300570087,
+      "concentration": 72.06496552031386,
+      "predicted_int8_snr_db": 1.1033316401779034,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_48",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.linear.default",
+      "module": "transformer.context_embedder",
+      "range_max": 1689.1697998046875,
+      "range_mean": 1331.5231567382812,
+      "std_max": 9.451310157775879,
+      "outlier_ratio": 1.2685996418886945,
+      "concentration": 12.451994582383838,
+      "predicted_int8_snr_db": 7.884448668052539,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_251",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.0",
+      "range_max": 2280.900634765625,
+      "range_mean": 1901.894464111328,
+      "std_max": 13.978348731994629,
+      "outlier_ratio": 1.1992782343111714,
+      "concentration": 16.37297690132638,
+      "predicted_int8_snr_db": 8.675064624211412,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_561",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.2",
+      "range_max": 2011.9830322265625,
+      "range_mean": 1763.6577209472657,
+      "std_max": 12.42492961883545,
+      "outlier_ratio": 1.1408013064722788,
+      "concentration": 14.370862543927604,
+      "predicted_int8_snr_db": 8.74146699461213,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_398",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.1",
+      "range_max": 2282.483154296875,
+      "range_mean": 1931.2071960449218,
+      "std_max": 14.427765846252441,
+      "outlier_ratio": 1.181894495303953,
+      "concentration": 16.35267109079015,
+      "predicted_int8_snr_db": 8.943904613118118,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_414",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.1",
+      "range_max": 1999.099365234375,
+      "range_mean": 1749.0816650390625,
+      "std_max": 12.759933471679688,
+      "outlier_ratio": 1.142942268044259,
+      "concentration": 14.318444099937214,
+      "predicted_int8_snr_db": 9.028355100158041,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_724",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.3",
+      "range_max": 1968.357177734375,
+      "range_mean": 1690.4048706054687,
+      "std_max": 13.722906112670898,
+      "outlier_ratio": 1.1644294286902697,
+      "concentration": 14.027796508945343,
+      "predicted_int8_snr_db": 9.794918200773257,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_235",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.0",
+      "range_max": 1927.4560546875,
+      "range_mean": 1474.04501953125,
+      "std_max": 13.519676208496094,
+      "outlier_ratio": 1.307596463573708,
+      "concentration": 14.122386873281418,
+      "predicted_int8_snr_db": 9.84771063353099,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_577",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.2",
+      "range_max": 1825.335693359375,
+      "range_mean": 1593.7363830566405,
+      "std_max": 12.879858016967773,
+      "outlier_ratio": 1.145318455903321,
+      "concentration": 13.056869790290376,
+      "predicted_int8_snr_db": 9.899441110192118,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_902",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.4",
+      "range_max": 4070.2236328125,
+      "range_mean": 1902.341650390625,
+      "std_max": 28.743450164794922,
+      "outlier_ratio": 2.1395860370174433,
+      "concentration": 47.29843193919613,
+      "predicted_int8_snr_db": 9.906487025253911,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_887",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.4",
+      "range_max": 1991.0360107421875,
+      "range_mean": 1566.6306396484374,
+      "std_max": 14.573766708374023,
+      "outlier_ratio": 1.270903275062327,
+      "concentration": 14.02253758700377,
+      "predicted_int8_snr_db": 10.21792849000436,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_740",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.3",
+      "range_max": 1748.1436767578125,
+      "range_mean": 1466.22998046875,
+      "std_max": 13.409066200256348,
+      "outlier_ratio": 1.1922711307532639,
+      "concentration": 12.386056857242382,
+      "predicted_int8_snr_db": 10.624502749320596,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_903",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.transformer_blocks.4",
+      "range_max": 4183.89404296875,
+      "range_mean": 2250.510400390625,
+      "std_max": 32.91477966308594,
+      "outlier_ratio": 1.8590867397202628,
+      "concentration": 27.32683166406483,
+      "predicted_int8_snr_db": 10.844280018461394,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_576",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.2",
+      "range_max": 645.2867431640625,
+      "range_mean": 377.52416915893554,
+      "std_max": 5.482187747955322,
+      "outlier_ratio": 1.709259421990544,
+      "concentration": 30.177392882934054,
+      "predicted_int8_snr_db": 11.512097758267196,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_739",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.3",
+      "range_max": 753.1602172851562,
+      "range_mean": 388.79426498413085,
+      "std_max": 6.521552085876465,
+      "outlier_ratio": 1.9371690508755253,
+      "concentration": 18.479992407191677,
+      "predicted_int8_snr_db": 11.677346427714724,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_413",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.1",
+      "range_max": 456.0391845703125,
+      "range_mean": 333.25187225341796,
+      "std_max": 4.023979187011719,
+      "outlier_ratio": 1.3684519804393542,
+      "concentration": 36.85346610058396,
+      "predicted_int8_snr_db": 11.84114583096683,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_886",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.4",
+      "range_max": 682.3492431640625,
+      "range_mean": 359.1088493347168,
+      "std_max": 7.0628252029418945,
+      "outlier_ratio": 1.9001181519981454,
+      "concentration": 47.25220356614952,
+      "predicted_int8_snr_db": 13.227509402391215,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_234",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.0",
+      "range_max": 892.4749145507812,
+      "range_mean": 730.4329193115234,
+      "std_max": 9.884904861450195,
+      "outlier_ratio": 1.2218437736787549,
+      "concentration": 212.23934117493374,
+      "predicted_int8_snr_db": 13.815604040961901,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_560",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.2",
+      "range_max": 324.7816162109375,
+      "range_mean": 179.17974472045898,
+      "std_max": 4.206265926361084,
+      "outlier_ratio": 1.812602293398923,
+      "concentration": 41.61184022904716,
+      "predicted_int8_snr_db": 15.174180270433823,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_723",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.3",
+      "range_max": 395.1498718261719,
+      "range_mean": 248.65921440124512,
+      "std_max": 5.355042457580566,
+      "outlier_ratio": 1.5891221758166756,
+      "concentration": 35.35605735511446,
+      "predicted_int8_snr_db": 15.568095986289094,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_738",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.linear.default",
+      "module": "transformer.transformer_blocks.3.ff_context.linear_out",
+      "range_max": 312.840576171875,
+      "range_mean": 136.94998359680176,
+      "std_max": 4.306818008422852,
+      "outlier_ratio": 2.2843418301744207,
+      "concentration": 10.252794039049974,
+      "predicted_int8_snr_db": 15.704743389611428,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_725",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.layer_norm.default",
+      "module": "transformer.transformer_blocks.3.norm2_context",
+      "range_max": 52.19652557373047,
+      "range_mean": 51.50494804382324,
+      "std_max": 1.0000003576278687,
+      "outlier_ratio": 1.013427399816398,
+      "concentration": 21.97999765670485,
+      "predicted_int8_snr_db": 18.57524572183362,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_760",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.layer_norm.default",
+      "module": "transformer.transformer_blocks.4.norm1_context",
+      "range_max": 52.11865997314453,
+      "range_mean": 51.31378021240234,
+      "std_max": 1.0000003576278687,
+      "outlier_ratio": 1.015685450524412,
+      "concentration": 17.114921917033442,
+      "predicted_int8_snr_db": 18.588212810668455,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_562",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.layer_norm.default",
+      "module": "transformer.transformer_blocks.2.norm2_context",
+      "range_max": 51.337791442871094,
+      "range_mean": 50.68583660125732,
+      "std_max": 1.0000003576278687,
+      "outlier_ratio": 1.0128626631290052,
+      "concentration": 29.346839862287048,
+      "predicted_int8_snr_db": 18.719334003907043,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_597",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.layer_norm.default",
+      "module": "transformer.transformer_blocks.3.norm1_context",
+      "range_max": 51.31716537475586,
+      "range_mean": 50.68813247680664,
+      "std_max": 1.0000003576278687,
+      "outlier_ratio": 1.0124098653316345,
+      "concentration": 18.87127104849283,
+      "predicted_int8_snr_db": 18.722824449167184,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_888",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.layer_norm.default",
+      "module": "transformer.transformer_blocks.4.norm2_context",
+      "range_max": 51.06504821777344,
+      "range_mean": 49.58498115539551,
+      "std_max": 1.0000003576278687,
+      "outlier_ratio": 1.029849100027678,
+      "concentration": 18.260865962118793,
+      "predicted_int8_snr_db": 18.765602704315082,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_399",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.layer_norm.default",
+      "module": "transformer.transformer_blocks.1.norm2_context",
+      "range_max": 50.76442337036133,
+      "range_mean": 48.6255578994751,
+      "std_max": 1.0000003576278687,
+      "outlier_ratio": 1.0439864458790984,
+      "concentration": 41.2025291434055,
+      "predicted_int8_snr_db": 18.816888482244284,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_434",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.layer_norm.default",
+      "module": "transformer.transformer_blocks.2.norm1_context",
+      "range_max": 50.66701889038086,
+      "range_mean": 48.61313381195068,
+      "std_max": 1.0000003576278687,
+      "outlier_ratio": 1.0422495921858317,
+      "concentration": 25.890609484660075,
+      "predicted_int8_snr_db": 18.833570584057554,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_397",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.1",
+      "range_max": 158.02304077148438,
+      "range_mean": 99.73804512023926,
+      "std_max": 3.150181770324707,
+      "outlier_ratio": 1.5843807704570467,
+      "concentration": 36.565211413964185,
+      "predicted_int8_snr_db": 18.92037851411267,
+      "numel": 1572864
+    },
+    {
+      "name": "activation_post_process_236",
+      "shape": "(1, 512, 3072)",
+      "op": "aten.layer_norm.default",
+      "module": "transformer.transformer_blocks.0.norm2_context",
+      "range_max": 49.60444641113281,
+      "range_mean": 47.444929695129396,
+      "std_max": 1.0000003576278687,
+      "outlier_ratio": 1.0455162802406914,
+      "concentration": 45.7547582007573,
+      "predicted_int8_snr_db": 19.017665485945066,
+      "numel": 1572864
+    }
+  ],
+  "skipped_overflow_examples": [
+    {
+      "snr": -7.785252190049542,
+      "shape": "(1, 512, 7680)",
+      "op": "encoder_hidden_states",
+      "module": "<?>"
+    },
+    {
+      "snr": 2.0037586147239734,
+      "shape": "(1, 512, 9216)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.4.ff_context.act_fn"
+    },
+    {
+      "snr": 4.243260263123918,
+      "shape": "(1, 512, 9216)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.2.ff_context.act_fn"
+    },
+    {
+      "snr": 4.787487978142763,
+      "shape": "(1, 512, 9216)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.3.ff_context.act_fn"
+    },
+    {
+      "snr": 5.31411770916597,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.15"
+    },
+    {
+      "snr": 5.469541644182878,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.14"
+    },
+    {
+      "snr": 5.577474923867747,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.13"
+    },
+    {
+      "snr": 5.740816412296033,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.11"
+    },
+    {
+      "snr": 5.759061900519907,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.12"
+    },
+    {
+      "snr": 6.319566602248681,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.16"
+    },
+    {
+      "snr": 6.369232778555554,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.10"
+    },
+    {
+      "snr": 6.527710474259484,
+      "shape": "(1, 512, 9216)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.1.ff_context.act_fn"
+    },
+    {
+      "snr": 6.556234286010991,
+      "shape": "(1, 512, 9216)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.transformer_blocks.0.ff_context.act_fn"
+    },
+    {
+      "snr": 6.6220313276984735,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.cat.default",
+      "module": "transformer"
+    },
+    {
+      "snr": 7.099802757233185,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.9"
+    },
+    {
+      "snr": 7.231505605332864,
+      "shape": "(1, 1536, 9216)",
+      "op": "aten.mul.Tensor",
+      "module": "transformer.single_transformer_blocks.4.attn.mlp_act_fn"
+    },
+    {
+      "snr": 7.2342272284677565,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.8"
+    },
+    {
+      "snr": 7.353492442021769,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.2"
+    },
+    {
+      "snr": 7.385873660573202,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.0"
+    },
+    {
+      "snr": 7.400421716298148,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.7"
+    },
+    {
+      "snr": 7.47970309699115,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.1"
+    },
+    {
+      "snr": 7.53244622605687,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.3"
+    },
+    {
+      "snr": 8.066339723076663,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.6"
+    },
+    {
+      "snr": 8.14549880702859,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.17"
+    },
+    {
+      "snr": 8.197517501369054,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.4"
+    },
+    {
+      "snr": 8.199095819848882,
+      "shape": "(1, 24, 1536, 1536)",
+      "op": "aten._safe_softmax.default",
+      "module": "<?>"
+    },
+    {
+      "snr": 8.332861316772496,
+      "shape": "(1, 24, 1536, 1536)",
+      "op": "aten._safe_softmax.default",
+      "module": "<?>"
+    },
+    {
+      "snr": 8.526565258297893,
+      "shape": "(1, 1536, 12288)",
+      "op": "aten.cat.default",
+      "module": "transformer.single_transformer_blocks.4.attn"
+    },
+    {
+      "snr": 8.714845436572572,
+      "shape": "(1, 1536, 3072)",
+      "op": "aten.add.Tensor",
+      "module": "transformer.single_transformer_blocks.5"
+    },
+    {
+      "snr": 10.048792389453727,
+      "shape": "(1, 24, 1536, 1536)",
+      "op": "aten._safe_softmax.default",
+      "module": "<?>"
+    }
+  ]
+}

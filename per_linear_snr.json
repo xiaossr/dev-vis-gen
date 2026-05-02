@@ -1,0 +1,1740 @@
+[
+  {
+    "name": "time_guidance_embed.timestep_embedder.linear_1",
+    "shape_in": [
+      1,
+      256
+    ],
+    "shape_w": [
+      3072,
+      256
+    ],
+    "snr_db": 44.894351959228516,
+    "cos": 0.9999837875366211,
+    "out_norm": 14.481972694396973,
+    "err_norm": 0.08243469148874283
+  },
+  {
+    "name": "time_guidance_embed.timestep_embedder.linear_2",
+    "shape_in": [
+      1,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 43.67296600341797,
+    "cos": 0.9999786019325256,
+    "out_norm": 10.846117973327637,
+    "err_norm": 0.07106012850999832
+  },
+  {
+    "name": "double_stream_modulation_img.linear",
+    "shape_in": [
+      1,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 46.34248352050781,
+    "cos": 0.9999922513961792,
+    "out_norm": 115.51116943359375,
+    "err_norm": 0.556544303894043
+  },
+  {
+    "name": "double_stream_modulation_txt.linear",
+    "shape_in": [
+      1,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 42.22718811035156,
+    "cos": 0.9999850988388062,
+    "out_norm": 100.51256561279297,
+    "err_norm": 0.7777875065803528
+  },
+  {
+    "name": "single_stream_modulation.linear",
+    "shape_in": [
+      1,
+      3072
+    ],
+    "shape_w": [
+      9216,
+      3072
+    ],
+    "snr_db": 50.1408805847168,
+    "cos": 0.9999998807907104,
+    "out_norm": 571.5449829101562,
+    "err_norm": 1.778304934501648
+  },
+  {
+    "name": "x_embedder",
+    "shape_in": [
+      1,
+      1024,
+      128
+    ],
+    "shape_w": [
+      3072,
+      128
+    ],
+    "snr_db": 38.48645782470703,
+    "cos": 1.0004644393920898,
+    "out_norm": 936.9694213867188,
+    "err_norm": 11.153276443481445
+  },
+  {
+    "name": "context_embedder",
+    "shape_in": [
+      1,
+      512,
+      7680
+    ],
+    "shape_w": [
+      3072,
+      7680
+    ],
+    "snr_db": 7.151030540466309,
+    "cos": 0.8990894556045532,
+    "out_norm": 9431.0419921875,
+    "err_norm": 4140.07470703125
+  },
+  {
+    "name": "transformer_blocks.0.attn.to_q",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 43.66803741455078,
+    "cos": 1.0003211498260498,
+    "out_norm": 8547.8505859375,
+    "err_norm": 56.034454345703125
+  },
+  {
+    "name": "transformer_blocks.0.attn.to_k",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 43.097564697265625,
+    "cos": 1.000218152999878,
+    "out_norm": 9118.1357421875,
+    "err_norm": 63.830467224121094
+  },
+  {
+    "name": "transformer_blocks.0.attn.to_v",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 33.53718185424805,
+    "cos": 0.9999213814735413,
+    "out_norm": 2393.576416015625,
+    "err_norm": 50.37189865112305
+  },
+  {
+    "name": "transformer_blocks.0.attn.to_out.0",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 37.14451599121094,
+    "cos": 1.000072717666626,
+    "out_norm": 2988.489013671875,
+    "err_norm": 41.516998291015625
+  },
+  {
+    "name": "transformer_blocks.0.attn.add_q_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 41.14845275878906,
+    "cos": 1.0000203847885132,
+    "out_norm": 6402.24853515625,
+    "err_norm": 56.09315872192383
+  },
+  {
+    "name": "transformer_blocks.0.attn.add_k_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 41.35853576660156,
+    "cos": 1.000038743019104,
+    "out_norm": 6384.4052734375,
+    "err_norm": 54.600101470947266
+  },
+  {
+    "name": "transformer_blocks.0.attn.add_v_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 35.70092010498047,
+    "cos": 0.9999136924743652,
+    "out_norm": 2784.4775390625,
+    "err_norm": 45.67701721191406
+  },
+  {
+    "name": "transformer_blocks.0.attn.to_add_out",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 37.792572021484375,
+    "cos": 0.9999750852584839,
+    "out_norm": 2486.832763671875,
+    "err_norm": 32.06401443481445
+  },
+  {
+    "name": "transformer_blocks.0.ff.linear_in",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 34.89536666870117,
+    "cos": 1.0019090175628662,
+    "out_norm": 1910.3922119140625,
+    "err_norm": 34.38383102416992
+  },
+  {
+    "name": "transformer_blocks.0.ff.linear_out",
+    "shape_in": [
+      1,
+      1024,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 24.437843322753906,
+    "cos": 0.9983944892883301,
+    "out_norm": 1252.178955078125,
+    "err_norm": 75.12323760986328
+  },
+  {
+    "name": "transformer_blocks.0.ff_context.linear_in",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 28.91059684753418,
+    "cos": 0.9999993443489075,
+    "out_norm": 2691.567626953125,
+    "err_norm": 96.48847961425781
+  },
+  {
+    "name": "transformer_blocks.0.ff_context.linear_out",
+    "shape_in": [
+      1,
+      512,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 10.040409088134766,
+    "cos": 0.9497768878936768,
+    "out_norm": 1166.5308837890625,
+    "err_norm": 367.17724609375
+  },
+  {
+    "name": "transformer_blocks.1.attn.to_q",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 37.47304153442383,
+    "cos": 1.000072956085205,
+    "out_norm": 4866.142578125,
+    "err_norm": 65.09276580810547
+  },
+  {
+    "name": "transformer_blocks.1.attn.to_k",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 36.09930419921875,
+    "cos": 1.0000144243240356,
+    "out_norm": 4186.88525390625,
+    "err_norm": 65.60334014892578
+  },
+  {
+    "name": "transformer_blocks.1.attn.to_v",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 35.03094482421875,
+    "cos": 0.9999816417694092,
+    "out_norm": 3631.451904296875,
+    "err_norm": 64.3476791381836
+  },
+  {
+    "name": "transformer_blocks.1.attn.to_out.0",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 37.39799118041992,
+    "cos": 1.0000436305999756,
+    "out_norm": 3584.835205078125,
+    "err_norm": 48.369285583496094
+  },
+  {
+    "name": "transformer_blocks.1.attn.add_q_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 29.888477325439453,
+    "cos": 0.999537467956543,
+    "out_norm": 1626.3033447265625,
+    "err_norm": 52.092796325683594
+  },
+  {
+    "name": "transformer_blocks.1.attn.add_k_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 31.5634708404541,
+    "cos": 0.9997094869613647,
+    "out_norm": 1950.1627197265625,
+    "err_norm": 51.51068878173828
+  },
+  {
+    "name": "transformer_blocks.1.attn.add_v_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 26.447668075561523,
+    "cos": 0.9989107251167297,
+    "out_norm": 1004.1290893554688,
+    "err_norm": 47.797607421875
+  },
+  {
+    "name": "transformer_blocks.1.attn.to_add_out",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 36.23952865600586,
+    "cos": 0.9999198913574219,
+    "out_norm": 1969.62939453125,
+    "err_norm": 30.367429733276367
+  },
+  {
+    "name": "transformer_blocks.1.ff.linear_in",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 34.158653259277344,
+    "cos": 1.001965880393982,
+    "out_norm": 2271.71533203125,
+    "err_norm": 44.506282806396484
+  },
+  {
+    "name": "transformer_blocks.1.ff.linear_out",
+    "shape_in": [
+      1,
+      1024,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 20.022964477539062,
+    "cos": 0.9951949715614319,
+    "out_norm": 764.2783203125,
+    "err_norm": 76.22603607177734
+  },
+  {
+    "name": "transformer_blocks.1.ff_context.linear_in",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 29.33428192138672,
+    "cos": 1.0000053644180298,
+    "out_norm": 2839.269287109375,
+    "err_norm": 96.93765258789062
+  },
+  {
+    "name": "transformer_blocks.1.ff_context.linear_out",
+    "shape_in": [
+      1,
+      512,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 11.011165618896484,
+    "cos": 0.9605078101158142,
+    "out_norm": 1515.312744140625,
+    "err_norm": 426.5245361328125
+  },
+  {
+    "name": "transformer_blocks.2.attn.to_q",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 36.23860168457031,
+    "cos": 1.0000672340393066,
+    "out_norm": 4533.19091796875,
+    "err_norm": 69.89947509765625
+  },
+  {
+    "name": "transformer_blocks.2.attn.to_k",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 38.133541107177734,
+    "cos": 1.0001332759857178,
+    "out_norm": 5616.62109375,
+    "err_norm": 69.63027954101562
+  },
+  {
+    "name": "transformer_blocks.2.attn.to_v",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 31.737091064453125,
+    "cos": 0.9997841715812683,
+    "out_norm": 2789.84375,
+    "err_norm": 72.23127746582031
+  },
+  {
+    "name": "transformer_blocks.2.attn.to_out.0",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 36.18243408203125,
+    "cos": 1.000006914138794,
+    "out_norm": 3054.887939453125,
+    "err_norm": 47.4104118347168
+  },
+  {
+    "name": "transformer_blocks.2.attn.add_q_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 32.292236328125,
+    "cos": 0.9997553825378418,
+    "out_norm": 2265.9287109375,
+    "err_norm": 55.03443145751953
+  },
+  {
+    "name": "transformer_blocks.2.attn.add_k_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 32.652061462402344,
+    "cos": 0.9997842311859131,
+    "out_norm": 2359.664306640625,
+    "err_norm": 54.985355377197266
+  },
+  {
+    "name": "transformer_blocks.2.attn.add_v_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 28.693470001220703,
+    "cos": 0.9993725419044495,
+    "out_norm": 1544.4342041015625,
+    "err_norm": 56.76698303222656
+  },
+  {
+    "name": "transformer_blocks.2.attn.to_add_out",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 33.779090881347656,
+    "cos": 0.9998300671577454,
+    "out_norm": 2100.637939453125,
+    "err_norm": 42.99288558959961
+  },
+  {
+    "name": "transformer_blocks.2.ff.linear_in",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 34.244503021240234,
+    "cos": 1.0019761323928833,
+    "out_norm": 2355.2861328125,
+    "err_norm": 45.689735412597656
+  },
+  {
+    "name": "transformer_blocks.2.ff.linear_out",
+    "shape_in": [
+      1,
+      1024,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 25.275482177734375,
+    "cos": 0.9986330270767212,
+    "out_norm": 716.9391479492188,
+    "err_norm": 39.057838439941406
+  },
+  {
+    "name": "transformer_blocks.2.ff_context.linear_in",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 31.95744514465332,
+    "cos": 1.0002611875534058,
+    "out_norm": 3957.463134765625,
+    "err_norm": 99.89518737792969
+  },
+  {
+    "name": "transformer_blocks.2.ff_context.linear_out",
+    "shape_in": [
+      1,
+      512,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 15.273247718811035,
+    "cos": 0.9853256344795227,
+    "out_norm": 2481.391845703125,
+    "err_norm": 427.5953369140625
+  },
+  {
+    "name": "transformer_blocks.3.attn.to_q",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 35.4672737121582,
+    "cos": 1.0000007152557373,
+    "out_norm": 5374.029296875,
+    "err_norm": 90.55998992919922
+  },
+  {
+    "name": "transformer_blocks.3.attn.to_k",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 37.582645416259766,
+    "cos": 1.0001170635223389,
+    "out_norm": 6793.171875,
+    "err_norm": 89.73055267333984
+  },
+  {
+    "name": "transformer_blocks.3.attn.to_v",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 31.25322151184082,
+    "cos": 0.9997583627700806,
+    "out_norm": 3486.40625,
+    "err_norm": 95.43702697753906
+  },
+  {
+    "name": "transformer_blocks.3.attn.to_out.0",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 36.071006774902344,
+    "cos": 0.9999985694885254,
+    "out_norm": 3824.564453125,
+    "err_norm": 60.12177276611328
+  },
+  {
+    "name": "transformer_blocks.3.attn.add_q_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 28.462310791015625,
+    "cos": 0.9993371963500977,
+    "out_norm": 2866.40673828125,
+    "err_norm": 108.19878387451172
+  },
+  {
+    "name": "transformer_blocks.3.attn.add_k_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 29.925521850585938,
+    "cos": 0.9995555877685547,
+    "out_norm": 3371.888427734375,
+    "err_norm": 107.54669952392578
+  },
+  {
+    "name": "transformer_blocks.3.attn.add_v_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 25.015731811523438,
+    "cos": 0.9984743595123291,
+    "out_norm": 2064.03076171875,
+    "err_norm": 115.85897827148438
+  },
+  {
+    "name": "transformer_blocks.3.attn.to_add_out",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 30.916536331176758,
+    "cos": 0.9996403455734253,
+    "out_norm": 2852.4921875,
+    "err_norm": 81.17041015625
+  },
+  {
+    "name": "transformer_blocks.3.ff.linear_in",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 36.456443786621094,
+    "cos": 1.0019181966781616,
+    "out_norm": 2576.18505859375,
+    "err_norm": 38.73957061767578
+  },
+  {
+    "name": "transformer_blocks.3.ff.linear_out",
+    "shape_in": [
+      1,
+      1024,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 21.626367568969727,
+    "cos": 0.9966946840286255,
+    "out_norm": 963.2719116210938,
+    "err_norm": 79.87862396240234
+  },
+  {
+    "name": "transformer_blocks.3.ff_context.linear_in",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 31.857772827148438,
+    "cos": 1.0002696514129639,
+    "out_norm": 3949.7744140625,
+    "err_norm": 100.85182189941406
+  },
+  {
+    "name": "transformer_blocks.3.ff_context.linear_out",
+    "shape_in": [
+      1,
+      512,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 10.25698184967041,
+    "cos": 0.9526740312576294,
+    "out_norm": 2121.708984375,
+    "err_norm": 651.3834228515625
+  },
+  {
+    "name": "transformer_blocks.4.attn.to_q",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 33.104103088378906,
+    "cos": 0.9999097585678101,
+    "out_norm": 6660.68896484375,
+    "err_norm": 147.33775329589844
+  },
+  {
+    "name": "transformer_blocks.4.attn.to_k",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 34.10768508911133,
+    "cos": 0.9999654293060303,
+    "out_norm": 7595.05078125,
+    "err_norm": 149.6740264892578
+  },
+  {
+    "name": "transformer_blocks.4.attn.to_v",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 30.693330764770508,
+    "cos": 0.9997001886367798,
+    "out_norm": 5974.19482421875,
+    "err_norm": 174.42665100097656
+  },
+  {
+    "name": "transformer_blocks.4.attn.to_out.0",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 36.366390228271484,
+    "cos": 1.000035047531128,
+    "out_norm": 6631.4404296875,
+    "err_norm": 100.76005554199219
+  },
+  {
+    "name": "transformer_blocks.4.attn.add_q_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 25.346689224243164,
+    "cos": 0.9985988140106201,
+    "out_norm": 3281.095947265625,
+    "err_norm": 177.2901153564453
+  },
+  {
+    "name": "transformer_blocks.4.attn.add_k_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 26.92682456970215,
+    "cos": 0.9990415573120117,
+    "out_norm": 3927.4189453125,
+    "err_norm": 176.91552734375
+  },
+  {
+    "name": "transformer_blocks.4.attn.add_v_proj",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 21.441068649291992,
+    "cos": 0.9964866638183594,
+    "out_norm": 2358.760986328125,
+    "err_norm": 199.8161163330078
+  },
+  {
+    "name": "transformer_blocks.4.attn.to_add_out",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      3072,
+      3072
+    ],
+    "snr_db": 32.90752410888672,
+    "cos": 0.9997842907905579,
+    "out_norm": 3868.973388671875,
+    "err_norm": 87.54261779785156
+  },
+  {
+    "name": "transformer_blocks.4.ff.linear_in",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 38.71405792236328,
+    "cos": 1.002095341682434,
+    "out_norm": 3385.02294921875,
+    "err_norm": 39.251731872558594
+  },
+  {
+    "name": "transformer_blocks.4.ff.linear_out",
+    "shape_in": [
+      1,
+      1024,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 25.745433807373047,
+    "cos": 0.9988863468170166,
+    "out_norm": 3366.999755859375,
+    "err_norm": 173.7686309814453
+  },
+  {
+    "name": "transformer_blocks.4.ff_context.linear_in",
+    "shape_in": [
+      1,
+      512,
+      3072
+    ],
+    "shape_w": [
+      18432,
+      3072
+    ],
+    "snr_db": 27.223756790161133,
+    "cos": 0.9996785521507263,
+    "out_norm": 3970.3291015625,
+    "err_norm": 172.83779907226562
+  },
+  {
+    "name": "transformer_blocks.4.ff_context.linear_out",
+    "shape_in": [
+      1,
+      512,
+      9216
+    ],
+    "shape_w": [
+      3072,
+      9216
+    ],
+    "snr_db": 12.800718307495117,
+    "cos": 0.9736361503601074,
+    "out_norm": 7140.9169921875,
+    "err_norm": 1635.754150390625
+  },
+  {
+    "name": "single_transformer_blocks.0.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 26.22743797302246,
+    "cos": 1.0056750774383545,
+    "out_norm": 2988.735107421875,
+    "err_norm": 145.9202117919922
+  },
+  {
+    "name": "single_transformer_blocks.0.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 15.631670951843262,
+    "cos": 0.9867368936538696,
+    "out_norm": 874.2322998046875,
+    "err_norm": 144.5583953857422
+  },
+  {
+    "name": "single_transformer_blocks.1.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 27.359180450439453,
+    "cos": 1.006056308746338,
+    "out_norm": 3362.538330078125,
+    "err_norm": 144.1147003173828
+  },
+  {
+    "name": "single_transformer_blocks.1.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 16.74190330505371,
+    "cos": 0.989811897277832,
+    "out_norm": 767.9560546875,
+    "err_norm": 111.74836730957031
+  },
+  {
+    "name": "single_transformer_blocks.2.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 27.909160614013672,
+    "cos": 1.0065131187438965,
+    "out_norm": 3526.06201171875,
+    "err_norm": 141.85084533691406
+  },
+  {
+    "name": "single_transformer_blocks.2.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 18.94304656982422,
+    "cos": 0.9939223527908325,
+    "out_norm": 741.1216430664062,
+    "err_norm": 83.7022476196289
+  },
+  {
+    "name": "single_transformer_blocks.3.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 28.631771087646484,
+    "cos": 1.0062823295593262,
+    "out_norm": 3807.591552734375,
+    "err_norm": 140.9489288330078
+  },
+  {
+    "name": "single_transformer_blocks.3.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 14.39119815826416,
+    "cos": 0.9825177192687988,
+    "out_norm": 781.3952026367188,
+    "err_norm": 149.04273986816406
+  },
+  {
+    "name": "single_transformer_blocks.4.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 30.649993896484375,
+    "cos": 1.008652925491333,
+    "out_norm": 4954.69921875,
+    "err_norm": 145.38433837890625
+  },
+  {
+    "name": "single_transformer_blocks.4.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 23.257427215576172,
+    "cos": 0.9979212880134583,
+    "out_norm": 904.8496704101562,
+    "err_norm": 62.187782287597656
+  },
+  {
+    "name": "single_transformer_blocks.5.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 27.919662475585938,
+    "cos": 1.0075697898864746,
+    "out_norm": 3601.5673828125,
+    "err_norm": 144.71328735351562
+  },
+  {
+    "name": "single_transformer_blocks.5.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 21.82884407043457,
+    "cos": 0.997048020362854,
+    "out_norm": 1002.955810546875,
+    "err_norm": 81.25302124023438
+  },
+  {
+    "name": "single_transformer_blocks.6.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 28.722009658813477,
+    "cos": 1.0072784423828125,
+    "out_norm": 4085.8046875,
+    "err_norm": 149.6846160888672
+  },
+  {
+    "name": "single_transformer_blocks.6.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 15.873573303222656,
+    "cos": 0.9873300790786743,
+    "out_norm": 1148.343505859375,
+    "err_norm": 184.66864013671875
+  },
+  {
+    "name": "single_transformer_blocks.7.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 27.868438720703125,
+    "cos": 1.0078665018081665,
+    "out_norm": 3729.296630859375,
+    "err_norm": 150.73184204101562
+  },
+  {
+    "name": "single_transformer_blocks.7.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 16.916658401489258,
+    "cos": 0.9901608228683472,
+    "out_norm": 1037.898193359375,
+    "err_norm": 148.0205078125
+  },
+  {
+    "name": "single_transformer_blocks.8.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 27.18194007873535,
+    "cos": 1.0081809759140015,
+    "out_norm": 3435.379638671875,
+    "err_norm": 150.2718963623047
+  },
+  {
+    "name": "single_transformer_blocks.8.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 12.22883129119873,
+    "cos": 0.9711053371429443,
+    "out_norm": 1003.1064453125,
+    "err_norm": 245.41744995117188
+  },
+  {
+    "name": "single_transformer_blocks.9.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 27.794628143310547,
+    "cos": 1.007524013519287,
+    "out_norm": 3702.54248046875,
+    "err_norm": 150.9276123046875
+  },
+  {
+    "name": "single_transformer_blocks.9.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 13.314858436584473,
+    "cos": 0.9774613380432129,
+    "out_norm": 1365.4967041015625,
+    "err_norm": 294.8137512207031
+  },
+  {
+    "name": "single_transformer_blocks.10.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 28.217700958251953,
+    "cos": 1.0067367553710938,
+    "out_norm": 3826.435302734375,
+    "err_norm": 148.56251525878906
+  },
+  {
+    "name": "single_transformer_blocks.10.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 15.871028900146484,
+    "cos": 0.9874738454818726,
+    "out_norm": 1297.772705078125,
+    "err_norm": 208.75994873046875
+  },
+  {
+    "name": "single_transformer_blocks.11.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 29.438823699951172,
+    "cos": 1.0070873498916626,
+    "out_norm": 4358.17578125,
+    "err_norm": 147.01560974121094
+  },
+  {
+    "name": "single_transformer_blocks.11.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 11.826735496520996,
+    "cos": 0.9684967994689941,
+    "out_norm": 1514.67529296875,
+    "err_norm": 388.13494873046875
+  },
+  {
+    "name": "single_transformer_blocks.12.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 30.150564193725586,
+    "cos": 1.007129192352295,
+    "out_norm": 4496.587890625,
+    "err_norm": 139.75099182128906
+  },
+  {
+    "name": "single_transformer_blocks.12.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 21.261943817138672,
+    "cos": 0.996479868888855,
+    "out_norm": 1522.259765625,
+    "err_norm": 131.64109802246094
+  },
+  {
+    "name": "single_transformer_blocks.13.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 30.027114868164062,
+    "cos": 1.0068113803863525,
+    "out_norm": 4477.5615234375,
+    "err_norm": 141.151611328125
+  },
+  {
+    "name": "single_transformer_blocks.13.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 10.015785217285156,
+    "cos": 0.9528335332870483,
+    "out_norm": 1501.6776123046875,
+    "err_norm": 474.0099182128906
+  },
+  {
+    "name": "single_transformer_blocks.14.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 30.070133209228516,
+    "cos": 1.0067079067230225,
+    "out_norm": 4846.5791015625,
+    "err_norm": 152.02978515625
+  },
+  {
+    "name": "single_transformer_blocks.14.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 18.347148895263672,
+    "cos": 0.9929596781730652,
+    "out_norm": 1672.48388671875,
+    "err_norm": 202.30401611328125
+  },
+  {
+    "name": "single_transformer_blocks.15.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 30.558391571044922,
+    "cos": 1.006205677986145,
+    "out_norm": 5070.1416015625,
+    "err_norm": 150.34901428222656
+  },
+  {
+    "name": "single_transformer_blocks.15.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 13.702316284179688,
+    "cos": 0.9794032573699951,
+    "out_norm": 2004.497314453125,
+    "err_norm": 413.89453125
+  },
+  {
+    "name": "single_transformer_blocks.16.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 30.597105026245117,
+    "cos": 1.0055028200149536,
+    "out_norm": 5021.716796875,
+    "err_norm": 148.2507781982422
+  },
+  {
+    "name": "single_transformer_blocks.16.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 16.782243728637695,
+    "cos": 0.9898121953010559,
+    "out_norm": 2807.678466796875,
+    "err_norm": 406.6634521484375
+  },
+  {
+    "name": "single_transformer_blocks.17.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 30.369247436523438,
+    "cos": 1.0047948360443115,
+    "out_norm": 5468.95751953125,
+    "err_norm": 165.74562072753906
+  },
+  {
+    "name": "single_transformer_blocks.17.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 16.071258544921875,
+    "cos": 0.988034188747406,
+    "out_norm": 3539.28271484375,
+    "err_norm": 556.35546875
+  },
+  {
+    "name": "single_transformer_blocks.18.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 29.34770965576172,
+    "cos": 1.0041863918304443,
+    "out_norm": 5906.03271484375,
+    "err_norm": 201.33087158203125
+  },
+  {
+    "name": "single_transformer_blocks.18.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 22.074539184570312,
+    "cos": 0.9970887303352356,
+    "out_norm": 6688.56689453125,
+    "err_norm": 526.7518310546875
+  },
+  {
+    "name": "single_transformer_blocks.19.attn.to_qkv_mlp_proj",
+    "shape_in": [
+      1,
+      1536,
+      3072
+    ],
+    "shape_w": [
+      27648,
+      3072
+    ],
+    "snr_db": 30.781269073486328,
+    "cos": 1.0065534114837646,
+    "out_norm": 8305.689453125,
+    "err_norm": 240.05581665039062
+  },
+  {
+    "name": "single_transformer_blocks.19.attn.to_out",
+    "shape_in": [
+      1,
+      1536,
+      12288
+    ],
+    "shape_w": [
+      3072,
+      12288
+    ],
+    "snr_db": 24.30656623840332,
+    "cos": 0.9985641241073608,
+    "out_norm": 18442.0390625,
+    "err_norm": 1123.2608642578125
+  },
+  {
+    "name": "norm_out.linear",
+    "shape_in": [
+      1,
+      3072
+    ],
+    "shape_w": [
+      6144,
+      3072
+    ],
+    "snr_db": 46.93655014038086,
+    "cos": 1.000001072883606,
+    "out_norm": 262.418212890625,
+    "err_norm": 1.1807730197906494
+  },
+  {
+    "name": "proj_out",
+    "shape_in": [
+      1,
+      1024,
+      3072
+    ],
+    "shape_w": [
+      128,
+      3072
+    ],
+    "snr_db": 38.59108352661133,
+    "cos": 0.999931812286377,
+    "out_norm": 276.5890197753906,
+    "err_norm": 3.252976179122925
+  }
+]

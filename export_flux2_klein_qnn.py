@@ -241,6 +241,17 @@ def _patch_apply_rotary_emb_for_qnn():
             x_rotated = torch.cat(
                 [(-x_imag).unsqueeze(-1), x_real.unsqueeze(-1)], dim=-1
             ).flatten(3)
+            # Chunk along the heads dim so each broadcast-mul fits in V81 VTCM
+            # (8 MB) at int16. With seq=1536, head_dim=128, full mul is 9.4 MB
+            # at int16; halving heads brings each chunk to 4.7 MB.
+            n_split = int(os.environ.get("FLUX_ROTARY_HEAD_SPLIT", "2"))
+            if n_split > 1 and x.dim() == 4:
+                head_dim_pos = 1 if sequence_dim == 2 else 2
+                if x.shape[head_dim_pos] % n_split == 0:
+                    x_parts = x.float().chunk(n_split, dim=head_dim_pos)
+                    xr_parts = x_rotated.float().chunk(n_split, dim=head_dim_pos)
+                    out_parts = [xp * cos + xrp * sin for xp, xrp in zip(x_parts, xr_parts)]
+                    return torch.cat(out_parts, dim=head_dim_pos).to(x.dtype)
             return (x.float() * cos + x_rotated.float() * sin).to(x.dtype)
         return _original(x, freqs_cis, use_real=use_real,
                          use_real_unbind_dim=use_real_unbind_dim,

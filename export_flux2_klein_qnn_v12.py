@@ -61,6 +61,25 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("export_v12")
 
 
+def _load_int16_node_names(profile_path: Path) -> set:
+    if profile_path is None or not profile_path.exists():
+        return set()
+    import json
+    data = json.loads(profile_path.read_text())
+    return set(data.get("int16_producer_node_names", []))
+
+
+def _vtcm_overflow_at_int16(node) -> bool:
+    """A node operating on >= 2M-element tensor at int16 will not fit V81's 8 MB VTCM."""
+    val = node.meta.get("val")
+    if val is None or not hasattr(val, "shape"):
+        return False
+    n = 1
+    for d in val.shape:
+        n *= int(d)
+    return n >= 2_000_000  # 2M elem * 2B = 4 MB; conservative
+
+
 def export_one(
     name: str,
     model: torch.nn.Module,
@@ -69,6 +88,7 @@ def export_one(
     soc_chipset,
     quant_dtype: QuantDtype | None,
     calibration_data: list | None,
+    int16_profile: Path | None = None,
 ):
     logger.info("=" * 60)
     logger.info("EXPORTING %s", name.upper())
@@ -84,11 +104,33 @@ def export_one(
             backend=QnnExecuTorchBackendType.kHtpBackend,
             soc_model=soc_chipset,
         )
+        # HistogramObserver from torchao (not torch.ao — that path triggers a
+        # _PartialWrapper bug in torchao prepare). Cuts outliers via percentile.
+        from torchao.quantization.pt2e.observer import HistogramObserver
+        from executorch.backends.qualcomm.quantizer.quantizer import ModuleQConfig
         quantizer.set_default_quant_config(
             quant_dtype,
             is_conv_per_channel=True,
             is_linear_per_channel=True,
+            act_observer=HistogramObserver,
         )
+
+        # Mixed precision: nodes flagged by profiling get 16a8w
+        int16_names = _load_int16_node_names(int16_profile)
+        if int16_names:
+            logger.info("Mixed precision: %d nodes promoted to 16a8w", len(int16_names))
+
+            def _is_int16_node(node):
+                return node.name in int16_names
+
+            quantizer.set_submodule_qconfig_list([
+                (_is_int16_node, ModuleQConfig(
+                    quant_dtype=QuantDtype.use_16a8w,
+                    is_conv_per_channel=True,
+                    is_linear_per_channel=True,
+                    act_observer=HistogramObserver,
+                )),
+            ])
 
         logger.info("prepare_pt2e ...")
         prepared = prepare_pt2e(captured, quantizer)
@@ -115,15 +157,34 @@ def export_one(
         converted = captured
 
     logger.info("Building HTP compiler spec ...")
-    backend_options = generate_htp_compiler_spec(use_fp16=quant_dtype is None)
+    backend_options = generate_htp_compiler_spec(
+        use_fp16=quant_dtype is None,
+        use_dlbc=True,  # Bandwidth compression to reduce activation memory
+    )
     compiler_specs = generate_qnn_executorch_compiler_spec(
         soc_model=soc_chipset,
         backend_options=backend_options,
     )
 
+    # Auto-skip is disabled by default — it was too aggressive (caught tilable
+    # matmuls). Set FLUX_ENABLE_AUTO_SKIP=1 to re-enable.
+    skip_id_set = None
+    if quant_dtype in (QuantDtype.use_16a8w, QuantDtype.use_16a4w, QuantDtype.use_16a16w) \
+            and os.environ.get("FLUX_ENABLE_AUTO_SKIP") == "1":
+        big = []
+        for node in converted.graph.nodes:
+            if node.op == "call_function" and _vtcm_overflow_at_int16(node):
+                big.append(node.name)
+        if big:
+            skip_id_set = set(big)
+            logger.info("Skipping %d nodes from QNN (would overflow V81 VTCM at int16)",
+                        len(skip_id_set))
+            logger.info("  examples: %s", sorted(skip_id_set)[:8])
+
     logger.info("to_edge_transform_and_lower_to_qnn ...")
     edge_mgr = to_edge_transform_and_lower_to_qnn(
-        converted, sample_inputs, compiler_specs
+        converted, sample_inputs, compiler_specs,
+        skip_node_id_set=skip_id_set,
     )
 
     logger.info("to_executorch ...")
@@ -168,9 +229,11 @@ def main():
     p.add_argument("--width", type=int, default=512)
     p.add_argument("--max_text_len", type=int, default=512)
     p.add_argument("--num_img2img_images", type=int, default=0)
-    p.add_argument("--quant_dtype", default="8a8w", choices=["8a8w", "16a8w", "16a4w", "16a16w"])
+    p.add_argument("--quant_dtype", default="16a8w", choices=["8a8w", "16a8w", "16a4w", "16a16w"])
     p.add_argument("--calibration_dir", default=None)
     p.add_argument("--use_fp16", action="store_true", help="Skip PTQ; export fp16")
+    p.add_argument("--int16_profile", default=None,
+                   help="Path to int16_profile.json for mixed precision; producer node names get 16a8w")
     args = p.parse_args()
 
     soc_chipset = get_qcom_chipset(args.soc_model)
@@ -203,8 +266,10 @@ def main():
             pipe, args.height, args.width, args.max_text_len,
             dtype=torch.float32, num_img2img_images=args.num_img2img_images,
         )
+        int16_profile_path = Path(args.int16_profile) if args.int16_profile else None
         export_one("transformer", model, sample_inputs, out / "transformer.pte",
-                   soc_chipset, quant_dtype, cal["transformer"])
+                   soc_chipset, quant_dtype, cal["transformer"],
+                   int16_profile=int16_profile_path)
     elif args.component == "vae":
         save_vae_bn_stats(pipe, str(out))
         model = VAEDecoderWrapper(pipe.vae).eval().cpu()

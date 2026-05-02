@@ -5,6 +5,8 @@
 exported_flux2_klein/
 /exported_flux2_klein_qairt/
 /exported_flux2_klein_qnn/
+exported_flux2_klein_qnn_*/
+exported_flux2_klein_xnnpack/
 exported_models/
 /qairt/
 
@@ -12,10 +14,25 @@ exported_models/
 *.pte
 *.dlc
 
+# Phone bundles and runtime artifacts
+flux2_phone_bundle/
+flux2_phone_ship/
+mobile_bundle/
+deploy_pkg/
+runner/build-android/
+
+# Calibration tensors and capture artifacts
+calibration_data/
+debug_ref.pt
+*.log
+
 # Local backups / scratch trees
 /executorch-examples-bak/
 
 __pycache__/
 .claude/
+.tools/
 .local-libs*/
+.venv/
 /tmp_*
+logs/
