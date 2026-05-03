@@ -4,10 +4,10 @@ Export and run the 4B-parameter FLUX.2-klein rectified-flow image generator on a
 Samsung Galaxy S26 Ultra (Snapdragon 8 Elite Gen 5 / SM8850) as a single standalone
 ARM64 binary. The repo supports two backends:
 
-| Backend   | Target              | Status                           | Component split |
-|-----------|---------------------|----------------------------------|-----------------|
-| XNNPACK   | ARM CPU (NEON/i8mm) | Working                          | text_encoder + transformer + vae on CPU, w8a8 dynamic |
-| QNN HTP   | Hexagon V81 NPU     | Transformer compile in progress  | text_encoder + vae on HTP, transformer sharded 5x |
+| Backend   | Target              | Status                                        | Recipe |
+|-----------|---------------------|-----------------------------------------------|--------|
+| XNNPACK   | ARM CPU (NEON/i8mm) | Working, ships                                | text_encoder + transformer + vae, w8a8 dynamic |
+| QNN HTP   | Hexagon V81 NPU     | Transformer `.pte` compiled, awaiting device test | linear-only-discard a16w8, host SNR +23.1 dB / cos 0.998 |
 
 Both paths share the same on-device runner (`runner/flux2_main.cpp`) and the same
 tokenizer / VAE batch-norm / `prompt.bin` preparation flow. The difference is which
@@ -16,21 +16,30 @@ ExecuTorch delegate is embedded in the `.pte` files — the runner is backend-ag
 ## Layout
 
 ```
-export_flux2_klein_xnnpack.py    XNNPACK CPU export (PT2E w8a8 dynamic)
-export_flux2_klein_qnn.py        QNN HTP export (PT2E w8a8 static, optional multi-context sharding)
-collect_calibration_data.py      Collect real-prompt activations for QNN static PTQ
-prepare_mobile.py                Tokenize a prompt to prompt.bin (+ BN stats copy)
-test_pte_host.py                 Host-side smoke test for .pte files (ExecuTorch Runtime)
+export_flux2_klein_xnnpack.py     XNNPACK CPU export (PT2E w8a8 dynamic)
+export_flux2_klein_qnn.py         QNN HTP shared utilities (wrappers, calibration loaders, rotary head-split)
+export_flux2_klein_qnn_v12.py     QNN HTP v1.2 export (default a16w8 single-context)
+export_flux2_klein_qnn_lin_only.py  QNN HTP a8w8 linear-only-discard export (host +3.6 dB / cos 0.82)
+export_flux2_klein_qnn_a16w8.py     QNN HTP a16w8 linear-only-discard export (host +23.1 dB / cos 0.998)
+collect_calibration_data.py       Collect real-prompt activations for QNN static PTQ
+prepare_mobile.py                 Tokenize a prompt to prompt.bin (+ BN stats copy)
+test_pte_host.py                  Host-side smoke test for .pte files (ExecuTorch Runtime)
 
-runner/flux2_main.cpp            On-device pipeline (sequential mmap/load of 3 .pte files)
-runner/CMakeLists.txt            Builds flux2_runner against an ExecuTorch install tree
-runner/deploy_to_device.sh       Build + push + run wrapper (auto-detects V75/V79/V81)
+diag_*.py                         Host PT2E diagnostics — per-Linear SNR, observer sweep,
+                                  block-level promotion, override-applies sanity checks, etc.
 
-stage_phone_ship.sh              Stage a flat, self-contained phone bundle at flux2_phone_ship/
-push_htp.sh                      Older direct-push script (kept for reference)
+runner/flux2_main.cpp             On-device pipeline (sequential mmap/load of 3 .pte files)
+runner/CMakeLists.txt             Builds flux2_runner against an ExecuTorch install tree
+runner/deploy_to_device.sh        Build + push + run wrapper (auto-detects V75/V79/V81)
 
-executorch/                      Local clone with QNN backend patches (see "Patches" below)
-qairt/2.45.0.260326/             Qualcomm AI Engine Direct SDK runtime libraries
+stage_phone_ship.sh               Stage a flat, self-contained phone bundle at flux2_phone_ship/
+push_htp.sh                       Older direct-push script (kept for reference)
+
+executorch/                       Local clone with QNN backend patches (see "Patches" below)
+qairt/2.45.0.260326/              Qualcomm AI Engine Direct SDK runtime libraries
+
+CONTEXT_FOR_AGENTS.md             Load-bearing context for follow-up work; read before diving in
+V12_PATH.md                       v1.2.0 ExecuTorch setup notes (which venv, which patches)
 ```
 
 ## End-to-end pipeline
@@ -116,7 +125,8 @@ vae_decoder.pte    ~0.20 GB   AutoencoderKLFlux2 decoder, w8a8 dynamic linears
 
 ## Export - QNN HTP path (Hexagon DSP)
 
-QNN needs *static* activation scales, so this path requires a calibration pass.
+The current HTP path uses **ExecuTorch v1.2.0** + the patched local `executorch/`
+tree. Setup notes in `V12_PATH.md`. Two production export scripts:
 
 ```bash
 # 1. Collect real activations (once).
@@ -124,73 +134,98 @@ python collect_calibration_data.py \
     --output_dir ./calibration_data \
     --num_timesteps 4
 
-# 2. Export. Target SM8850 = V81 = Snapdragon 8 Elite Gen 5.
-python export_flux2_klein_qnn.py \
-    --component all \
-    --soc_model SM8850 \
-    --quant_dtype 8a8w \
-    --calibration_dir ./calibration_data \
-    --output_dir ./exported_flux2_klein_qnn_v81 \
-    --transformer_shards 5
+# 2a. a16w8 export (RECOMMENDED — host SNR +23.1 dB / cos 0.998).
+cd /tmp && \
+  FLATC_EXECUTABLE=$REPO/.venv-et12/lib/python3.10/site-packages/executorch/data/bin/flatc \
+  FLUX_ROTARY_HEAD_SPLIT=2 \
+  $REPO/.venv-et12/bin/python $REPO/export_flux2_klein_qnn_a16w8.py \
+    --output_dir $REPO/exported_flux2_klein_qnn_a16w8 \
+    --calibration_dir $REPO/calibration_data
+
+# 2b. a8w8 export (fallback — host SNR +3.6 dB / cos 0.82, half VTCM pressure).
+$REPO/.venv-et12/bin/python $REPO/export_flux2_klein_qnn_lin_only.py ...
 ```
 
-Per-component pipeline in `export_component_to_qnn()`:
+**Output:** single 3.94 GB `transformer.pte` for a16w8 (3.97 GB for a8w8). Both
+target SM8850 (V81) and use a single QNN context — no transformer sharding
+needed in this path.
 
-1. `torch.export.export()` -> GraphModule.
-2. `_decompose_layer_norm()` - decompose `aten.native_layer_norm` into primitive
-   ops. Stock HTP rejects rank-3 LN (Flux uses `(B, S, C)`), and the decomposed
-   form stays on DSP.
-3. `QnnQuantizer(QuantDtype.use_8a8w, MovingAverageMinMaxObserver)` +
-   `prepare_pt2e`.
-4. Calibration - either real activations from `--calibration_dir` or synthetic
-   perturbations of `sample_inputs`.
-5. `convert_pt2e`.
-6. `_remove_int_quantize_nodes` - strip spurious `quantize_per_tensor` /
-   `dequantize_per_tensor` nodes on integer tensors that would break re-export.
-7. Re-export with `capture_program()` using QNN's decomp table and edge config.
-   Falls back to direct `torch.export.export(strict=False)` + `qnn_edge_config()`
-   if `capture_program` hits a dynamo regression.
-8. **Multi-context sharding** (`--transformer_shards N`, transformer only):
-   `_insert_flux_transformer_fallbacks()` walks the graph, finds transformer
-   block boundaries via `nn_module_stack`, and inserts
-   `exir_ops.edge.llama.fallback.default` nodes at `N-1` evenly-spaced
-   block boundaries (e.g. blocks [5, 10, 15, 20] for 30 blocks / 5 shards).
-   Adjacent tensors are tagged `QCOM_QUANTIZED_IO = torch.uint8` so the split
-   stays fixed-point end-to-end. This is needed because a monolithic AOT compile
-   of the whole transformer trips Qualcomm's host-side scheduler
-   (`RouterX86 graph prepare failed 18`, 88+ *"could not create op"* errors).
-9. `generate_htp_compiler_spec(use_fp16=..., use_dlbc=use_sharding,
-   use_multi_contexts=use_sharding)` ->
-   `QnnPartitioner(..., skip_node_op_set={"llama.fallback.default", ...})`.
-10. `to_backend(edge_prog, qnn_partitioner)` - partitions on support and lowers
-    each QNN partition to a separate context binary.
-11. `update_spill_fill_size(delegated_ep)` if sharded - reserves a single
-    spill/fill buffer sized to the max across shards.
-12. `EdgeProgramManager.to_executorch()` -> `.pte`.
+### Recipe details
 
-### Text encoder / VAE export notes
+The a16w8 production script does:
 
-- Text encoder and VAE decoder export cleanly as single HTP contexts with
-  `online_prepare=True` by default (graph preparation happens on device on first
-  load). Both are sensitive to `fp16_components` - pass `--fp16_components vae`
-  if the VAE's int8 output is visibly wrong, at the cost of 2x `.pte` size.
-- The transformer is always `online_prepare=False` (pure AOT). On-device online
-  prepare for the transformer was tried and turned out unreliable at this model
-  size.
+1. `torch.export.export(model, sample_inputs, strict=True).module()` — capture.
+2. `QnnQuantizer(backend=kHtpBackend, soc_model=SM8850).set_default_quant_config(
+   QuantDtype.use_16a8w, is_linear_per_channel=True, act_observer=HistogramObserver)`.
+3. **`add_discard_ops` on every quant_op except `aten.linear.default`,
+   `aten.conv2d.default`, `aten.conv1d.default`** — the key step. By default
+   `QnnQuantizer` annotates ~165 op types (mul, add, layer_norm, softmax, bmm,
+   matmul, …); discarding the 162 non-Linear ops lets them flow in fp on HTP and
+   eliminates compounding 256-level rounding through 25 transformer blocks.
+   Mirrors torchao's `Int8DynamicActivationInt8WeightConfig` policy (Linear-only)
+   on the QNN PT2E flow. Without this, host SNR is **−2.6 dB / cos 0.18**
+   (uncorrelated). With it: **+23.1 dB / cos 0.998 at a16w8**.
+4. `prepare_pt2e` → calibrate (5 real samples) → `convert_pt2e`.
+5. `generate_htp_compiler_spec(use_fp16=False, use_dlbc=True)` →
+   `to_edge_transform_and_lower_to_qnn` → `to_executorch` → write `.pte`.
+
+### Two non-obvious gotchas to know about
+
+**Rotary head-split** (`FLUX_ROTARY_HEAD_SPLIT=2`). FLUX's rotary embedding
+multiplies a `(1, 1536, 24, 128)` tensor by a `(1, 1536, 1, 128)` cos/sin
+broadcasting on the **head** dim. HTP's element-wise tiler doesn't fall back
+across axes when its first-choice slice doesn't fit; at int16 the tile is ~9.4 MB
+(over the 8 MB VTCM budget) and compile fails. The wrapper pre-splits the head
+dim into N halves before the multiply (bit-exact identical math, verified at
+FX-graph level) so each tile drops to ~4.7 MB and tiles cleanly. `N=2` is enough
+for the current shapes.
+
+**Two ExecuTorch venvs.** `.venv` ships v0.6.0 (incomplete for our path —
+missing `to_edge_transform_and_lower_to_qnn`). `.venv-et12` ships v1.2.0 (the
+correct one). The local `executorch/` tree is also at v1.2.0 with the patches
+listed below; **keep it on `sys.path`** so its patched
+`backends/qualcomm/builders/op_layer_norm.py` shadows the unpatched venv copy
+(otherwise the partitioner crashes with `'NoneType' object has no attribute
+'name'` on FLUX's `LayerNorm(elementwise_affine=False)` modules).
+
+### What got tried and didn't help
+
+For continuity with future work — these were dead ends:
+
+- **Selective a16w8 promotion.** Built a per-Linear local SNR ranking, identified
+  `context_embedder` (7.15 dB) and 25 output projections (10–25 dB) as outliers,
+  promoted them to a16w8 individually and as a group. Verified the
+  `set_submodule_qconfig_list` override actually applies (input observer
+  quant_max goes 255 → 65535). Despite that, end-to-end SNR didn't move (~0 dB).
+  **Lesson:** quant noise in this transformer is broadly distributed across all
+  109 Linears; partial promotion shaves a fraction of cumulative error
+  invisible end-to-end. Promote all or none.
+- **Per-block promotion of D00–D04 to 16a8w.** Got *worse* SNR (−2.92 dB);
+  boundary requant overhead at int8/int16 transitions ate the local gain.
+- **Observer sweep** (Histogram / MinMax / MovingAvg / QNN default). All
+  converged to similar SNR; observer choice not the bottleneck.
+- **Host-side outlier mitigation** (SmoothQuant / Hadamard / per-token L2)
+  before the `add_discard_ops` fix. No gain — masked by the over-annotation
+  noise floor. Not retested afterward.
+- **Older multi-context sharding** (5-shard transformer split) was needed under
+  v0.6's monolithic-graph scheduler crashes. v1.2.0 + linear-only-discard
+  compiles a single context cleanly; sharding deprecated for this path.
 
 ### Patches applied to `executorch/backends/qualcomm/`
 
 Stock ExecuTorch QNN backend has several issues that crash on FLUX. Patched
-locally in the in-tree `executorch/` clone:
+locally in the in-tree `executorch/` clone (matches v1.2.0 + fixes):
 
 | File | Change |
 |------|--------|
 | `serialization/qc_schema.py`, `qc_compiler_spec.fbs` | Add `HtpArch.V81 = 81` and `QcomChipset.SM8850 = 87`, plus `_soc_info_table` entry mapping SM8850 -> V81 / 8 MB VTCM. |
 | `_passes/lift_constant_scalar_operands.py` | Add `aten.pow.Scalar` -> `pow.Tensor_Tensor` to `SCALAR_OPS`; guard `hasattr(n.target, "_schema")` in `_lift()`; guard `isinstance(first_arg, fx.Node)` before reading `.meta`. |
 | `partition/qnn_partitioner.py` | In `is_node_supported`, early-return if `node.target.__name__ not in self.node_visitors`. |
-| `quantizer/annotators.py` | In `_mark_nodes_as_annotated`, `if node is None: continue`. LayerNorm.annotate guards `weight_node`/`bias_node` with `is not None`. |
+| `quantizer/annotators.py`, `quantizer/annotators/htp_rules.py` | In `_mark_nodes_as_annotated`, `if node is None: continue`. LayerNorm.annotate guards `weight_node`/`bias_node` with `is not None`. |
 | `builders/op_layer_norm.py` | When weight is `None`, synthesize `torch.ones(normalized_shape)`; same for bias with zeros. |
-| `builders/node_visitor.py`, `utils/utils.py`, `exir/backend/backend_api.py`, `exir/lowered_backend_module.py` | Misc. guards around shard-boundary metadata and fallback nodes. |
+| `exir/operator/util.py` | Catch `AttributeError` around the torchao import (was crashing on `torch.ops.torchao.dequantize_affine` not being registered). |
+| `third-party/ao` submodule | Bumped to v0.17.0-rc1 to match what executorch v1.2.0 expects (`torchao.quantization.pt2e.*`). |
+| `builders/node_visitor.py`, `utils/utils.py`, `exir/backend/backend_api.py`, `exir/lowered_backend_module.py` | Misc. guards around shard-boundary metadata and fallback nodes (legacy from sharded path; harmless under single-context). |
 
 These patches have not been submitted upstream.
 
