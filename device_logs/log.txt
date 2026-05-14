@@ -1,0 +1,1138 @@
+
+Menlo-Regular;
+;;;;
+;;;
+irnatural
+tightenfactor0
+adb shell "cd /data/local/tmp/flux2/htp && \\               \
+    chmod +x flux2_qnn_main && \\\
+    export LD_LIBRARY_PATH=. && \\\
+    ./flux2_qnn_main \\\
+        --model_dir . \\\
+        --tokens prompt.bin \\\
+        --output output.ppm \\\
+        --steps 4 --seed 42 \\\
+        --htp_performance_mode 3"\
+HTP performance mode: 3\
+=== FLUX.2-klein on-device inference (QNN/HTP) ===\
+Resolution   : 512x512\
+Patch dims   : 32x32  (1024 tokens)\
+Steps / seed : 4 / 42\
+Tokens loaded : seq_len=512\
+BN stats      : 128 channels\
+\
+[1/4] Loading text_encoder.pte ...\
+  loaded (0.0 s)\
+  running text encoder ...\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Use cached backend bundle for current backend: kHtpBackend\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+  prompt_embeds: 512 x 7680  (2.9 s)\
+[INFO] [Qnn ExecuTorch]: Destroy Qnn context\
+[INFO] [Qnn ExecuTorch]: Destroy Qnn context\
+[INFO] [Qnn ExecuTorch]: Destroy Qnn device\
+  text encoder released\
+\
+[2/4] Noise generation\
+[INFO] [Qnn ExecuTorch]: Destroy Qnn backend\
+  latents: 1024 x 128\
+  sigmas: 1.0000 0.9581 0.8840 0.7175 0.0000\
+\
+[3/4] Loading transformer.pte ...\
+  loaded (0.0 s)\
+  denoising (4 steps) ...\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 277 context 22 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 16, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 22 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 278 context 23 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 17, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 23 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 279 context 24 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 18, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 24 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 280 context 25 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 19, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 25 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 282 context 27 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 1b, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 27 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 283 context 28 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 1c, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 28 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 284 context 29 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 1d, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 29 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 287 context 32 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 20, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 32 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 288 context 33 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 21, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 33 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 289 context 34 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 22, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 34 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 290 context 35 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 23, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 35 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 292 context 37 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 25, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 37 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 293 context 38 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 26, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 38 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 294 context 39 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 27, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 39 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Skel failed to process context binary.\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 29, err 5005\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 41 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 297 context 42 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 2a, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 42 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport res[0]:8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map buffer of size 58720256\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map weights buffer to device!\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Could not allocate persistent weights buffer!\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 297 context 42 deviceId 0 coreId 0 pdId 2 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 2a, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 42 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 298 context 43 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 2b, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 43 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 299 context 44 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 2c, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 44 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Skel failed to process context binary.\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 2c, err 5005\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 44 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 300 context 45 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 2d, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 45 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 300 context 45 deviceId 0 coreId 0 pdId 2 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 2d, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 45 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 302 context 47 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 2f, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 47 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport res[0]:8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map buffer of size 20971520\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map weights buffer to device!\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Could not allocate persistent weights buffer!\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 302 context 47 deviceId 0 coreId 0 pdId 2 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 2f, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 47 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 303 context 48 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 30, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 48 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 303 context 48 deviceId 0 coreId 0 pdId 2 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 30, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 48 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 304 context 49 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 31, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 49 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Skel failed to process context binary.\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 31, err 5005\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 49 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 307 context 52 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 34, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 52 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 307 context 52 deviceId 0 coreId 0 pdId 2 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 34, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 52 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 308 context 53 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 35, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 53 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 308 context 53 deviceId 0 coreId 0 pdId 2 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 35, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 53 failed on pd 2\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 309 context 54 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 36, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 54 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 312 context 57 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 39, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 57 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 313 context 58 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 3a, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 58 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 313 context 58 deviceId 0 coreId 0 pdId 2 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 3a, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 58 failed on pd 2\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Skel failed to process context binary.\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 3 for context 3a, err 5005\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 58 failed on pd 3\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 314 context 59 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 3b, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 59 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 317 context 62 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 3e, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 62 failed on pd 0\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 318 context 63 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 3f, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 63 failed on pd 0\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map input buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 318 context 63 deviceId 0 coreId 0 pdId 2 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 2 for context 3f, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 63 failed on pd 2\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Skel failed to process context binary.\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 3 for context 3f, err 5005\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 63 failed on pd 3\
+\
+[INFO] [Qnn ExecuTorch]: Running level=1 optimization.\
+[INFO] [Qnn ExecuTorch]: Deserializing processed data using QnnContextCustomProtocol\
+[INFO] [Qnn ExecuTorch]: Creating new backend bundle.\
+[INFO] [Qnn ExecuTorch]: create QNN Logger with log_level 1\
+[INFO] [Qnn ExecuTorch]: Initialize Qnn backend parameters for Qnn executorch backend type 2\
+[INFO] [Qnn ExecuTorch]: Caching: Caching is in RESTORE MODE.\
+[INFO] [Qnn ExecuTorch]: QnnContextCustomProtocol expected magic number: 0x5678abcd but get: 0x2000000\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Error from rpc transport when doing buffer mapping, transportStatus = 0, map result: 8003\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to map output buffer on NSP\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> ERROR happen when trying to allocate buffers for graph forward\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph memory\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Failed to initialize graph with id 319 context 64 deviceId 0 coreId 0 pdId 0 with err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context create from binary failed for deviceId 0 coreId 0 pdId 0 for context 40, err 1002\
+\
+[ERROR] [Qnn ExecuTorch]: QnnDsp <E> Context 64 failed on pd 0\
+\
